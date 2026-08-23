@@ -1,4 +1,10 @@
-process.loadEnvFile()
+// Load .env for local dev; on a host like Render there's no file (env vars are injected
+// into the environment), so a missing .env is normal — don't crash on it.
+try {
+  process.loadEnvFile()
+} catch {
+  /* no .env present — rely on real environment variables */
+}
 import express, { type Request, type Response, type NextFunction } from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
