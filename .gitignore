@@ -1,0 +1,19 @@
+# Dependencies (regenerated from package-lock via `npm install`)
+node_modules/
+
+# Environment / secrets — real values never committed; the template is kept
+.env
+.env.*
+!.env.example
+
+# Scraped data — the DB is a runtime artifact; never commit dumps
+data/
+*.dump
+*.sql.gz
+
+# Build / cache artifacts
+dist/
+*.tsbuildinfo
+
+# OS / editor cruft
+.DS_Store

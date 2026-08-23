@@ -1,0 +1,204 @@
+/**
+ * Shaping layer (Phase 3, step 3b). Framework-agnostic: each function takes a pg
+ * Pool and returns the API contract types. Express routes are thin wrappers over
+ * these — no SQL or shaping logic lives in the HTTP layer.
+ *
+ * Two pg gotchas handled here:
+ *  - bigint columns (ids) come back as strings — already what the contract wants.
+ *  - numeric columns (minutes, all rate stats) come back as STRINGS to preserve
+ *    precision — we Number() them.
+ */
+import type { Pool } from 'pg'
+import type {
+  LeagueSeason,
+  PlayerDetail,
+  PlayerSummary,
+  Season,
+  SeasonPlayed,
+} from './contract'
+
+// ── number helpers ───────────────────────────────────────────────────────────
+/** Per-game value, 1 decimal (matches the frontend's precision). */
+const perGame = (total: number, gp: number): number =>
+  Math.round((total / gp) * 10) / 10
+/** made/att as a decimal to 3 places; null when there were no attempts. */
+const ratio = (made: number, att: number): number | null =>
+  att > 0 ? Math.round((made / att) * 1000) / 1000 : null
+/** A pg numeric (string | null) → number to 3 places, or null. */
+const num3 = (v: unknown): number | null =>
+  v == null ? null : Math.round(Number(v) * 1000) / 1000
+
+// ── player summary (shared by list + detail) ─────────────────────────────────
+interface SummaryRow {
+  id: string
+  espn_id: string
+  name: string
+  position: string | null
+  jersey: number | null
+  team_name: string | null
+  team_abbr: string | null
+}
+
+const SUMMARY_SELECT = `
+  SELECT p.id, p.espn_id, p.name, p.position, p.jersey,
+         v.team_name, v.team_abbr
+  FROM players p
+  LEFT JOIN player_current_team v ON v.player_id = p.id`
+
+function toSummary(r: SummaryRow): PlayerSummary {
+  return {
+    id: r.id,
+    espn: r.espn_id,
+    name: r.name,
+    team: r.team_name,
+    teamAbbr: r.team_abbr,
+    pos: r.position,
+    jersey: r.jersey,
+  }
+}
+
+/** GET /players — the select-screen list, alphabetical. */
+export async function getPlayers(pool: Pool): Promise<PlayerSummary[]> {
+  const { rows } = await pool.query<SummaryRow>(`${SUMMARY_SELECT} ORDER BY p.name`)
+  return rows.map(toSummary)
+}
+
+// ── one player's seasons ─────────────────────────────────────────────────────
+interface SeasonRow {
+  season_year: number
+  games_played: number
+  minutes: string | null
+  points: number
+  fg_made: number
+  fg_att: number
+  fg3_made: number
+  fg3_att: number
+  rebounds: number
+  assists: number
+  steals: number
+  blocks: number
+  ts_pct: string | null
+  efg_pct: string | null
+  tov_pct: string | null
+  fg3a_rate: string | null
+  ft_rate: string | null
+  usg_pct: string | null
+  ast_pct: string | null
+  oreb_pct: string | null
+  dreb_pct: string | null
+  treb_pct: string | null
+}
+
+function toSeasonPlayed(r: SeasonRow, birthYear: number | null): SeasonPlayed {
+  const gp = r.games_played
+  return {
+    year: r.season_year,
+    played: true,
+    age: birthYear === null ? null : r.season_year - birthYear,
+    gp,
+    min: r.minutes === null ? null : perGame(Number(r.minutes), gp),
+    pts: perGame(r.points, gp),
+    reb: perGame(r.rebounds, gp),
+    ast: perGame(r.assists, gp),
+    stl: perGame(r.steals, gp),
+    blk: perGame(r.blocks, gp),
+    fgp: ratio(r.fg_made, r.fg_att),
+    tpp: ratio(r.fg3_made, r.fg3_att),
+    tsPct: num3(r.ts_pct),
+    efgPct: num3(r.efg_pct),
+    tovPct: num3(r.tov_pct),
+    fg3aRate: num3(r.fg3a_rate),
+    ftRate: num3(r.ft_rate),
+    usgPct: num3(r.usg_pct),
+    astPct: num3(r.ast_pct),
+    orebPct: num3(r.oreb_pct),
+    drebPct: num3(r.dreb_pct),
+    trebPct: num3(r.treb_pct),
+  }
+}
+
+/** Fill year-gaps between a player's first and last played season with "missed" rows. */
+function withMissedSeasons(played: SeasonPlayed[]): Season[] {
+  if (played.length === 0) return []
+  const byYear = new Map(played.map((s) => [s.year, s]))
+  const first = played[0]!.year
+  const last = played[played.length - 1]!.year
+  const out: Season[] = []
+  for (let y = first; y <= last; y++) {
+    out.push(byYear.get(y) ?? { year: y, played: false, reason: 'Did not play' })
+  }
+  return out
+}
+
+/** GET /players/:id — one player + full regular-season history. null if not found. */
+export async function getPlayer(pool: Pool, id: string): Promise<PlayerDetail | null> {
+  const summaryRes = await pool.query<SummaryRow & { birth_date: string | null }>(
+    `SELECT p.id, p.espn_id, p.name, p.position, p.jersey, p.birth_date,
+            v.team_name, v.team_abbr
+     FROM players p
+     LEFT JOIN player_current_team v ON v.player_id = p.id
+     WHERE p.id = $1`,
+    [id],
+  )
+  const row = summaryRes.rows[0]
+  if (!row) return null
+  const birthYear = row.birth_date ? new Date(row.birth_date).getUTCFullYear() : null
+
+  const seasonRes = await pool.query<SeasonRow>(
+    `SELECT season_year, games_played, minutes, points, fg_made, fg_att,
+            fg3_made, fg3_att, rebounds, assists, steals, blocks,
+            ts_pct, efg_pct, tov_pct, fg3a_rate, ft_rate, usg_pct, ast_pct,
+            oreb_pct, dreb_pct, treb_pct
+     FROM player_seasons
+     WHERE player_id = $1 AND season_type = 2
+     ORDER BY season_year`,
+    [id],
+  )
+  const played = seasonRes.rows.map((r) => toSeasonPlayed(r, birthYear))
+  return { ...toSummary(row), seasons: withMissedSeasons(played) }
+}
+
+// ── league seasons ───────────────────────────────────────────────────────────
+interface LeagueRow {
+  season_year: number
+  scheduled_games: number
+  avg_points: string | null
+  avg_rebounds: string | null
+  avg_assists: string | null
+  avg_steals: string | null
+  avg_blocks: string | null
+  avg_fg_pct: string | null
+  avg_fg3_pct: string | null
+  avg_ts_pct: string | null
+  avg_efg_pct: string | null
+  avg_tov_pct: string | null
+  avg_fg3a_rate: string | null
+  avg_ft_rate: string | null
+}
+
+/** GET /league — per-year averages + slate length, ascending by year. */
+export async function getLeague(pool: Pool): Promise<LeagueSeason[]> {
+  const { rows } = await pool.query<LeagueRow>(
+    `SELECT season_year, scheduled_games,
+            avg_points, avg_rebounds, avg_assists, avg_steals, avg_blocks,
+            avg_fg_pct, avg_fg3_pct, avg_ts_pct, avg_efg_pct, avg_tov_pct,
+            avg_fg3a_rate, avg_ft_rate
+     FROM league_seasons ORDER BY season_year`,
+  )
+  return rows.map((r) => ({
+    year: r.season_year,
+    scheduledGames: r.scheduled_games,
+    pts: num3(r.avg_points) ?? 0,
+    reb: num3(r.avg_rebounds) ?? 0,
+    ast: num3(r.avg_assists) ?? 0,
+    stl: num3(r.avg_steals) ?? 0,
+    blk: num3(r.avg_blocks) ?? 0,
+    fgp: num3(r.avg_fg_pct) ?? 0,
+    tpp: num3(r.avg_fg3_pct) ?? 0,
+    tsPct: num3(r.avg_ts_pct) ?? 0,
+    efgPct: num3(r.avg_efg_pct) ?? 0,
+    tovPct: num3(r.avg_tov_pct) ?? 0,
+    fg3aRate: num3(r.avg_fg3a_rate) ?? 0,
+    ftRate: num3(r.avg_ft_rate) ?? 0,
+  }))
+}
