@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Private data layer for the wnba-arc visualizer — ESPN adapter + Postgres (Neon) + derived stats.",
+  "description": "Private data layer for the wnba-arc visualizer — ESPN adapter + Postgres (Supabase) + derived stats.",
   "engines": {
     "node": ">=20"
   },
@@ -19,7 +19,6 @@
     "@types/express": "^5.0.6",
     "@types/node": "^26.2.0",
     "@types/pg": "^8.23.0",
-    "tsx": "^4.23.12",
     "typescript": "^7.0.2",
     "vitest": "^4.1.10"
   },
@@ -28,6 +27,7 @@
     "express": "^5.2.1",
     "express-rate-limit": "^8.6.2",
     "helmet": "^8.3.0",
-    "pg": "^8.23.0"
+    "pg": "^8.23.0",
+    "tsx": "^4.23.12"
   }
 }
