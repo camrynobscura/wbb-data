@@ -105,3 +105,32 @@ export interface LeagueSeason {
   fg3aRate: number
   ftRate: number
 }
+
+/**
+ * Per-season, per-position league averages — the "compare to same position" baseline.
+ * Same stat fields as LeagueSeason (minus the league-wide scheduledGames), plus which
+ * position (G/F/C) and how many players fed the row. A (year, position) with too small a
+ * sample is simply ABSENT (minimum 8 qualified players; see the position_seasons table /
+ * computePositions.ts), which the frontend reads as "no same-position sample that season".
+ */
+export interface PositionSeason {
+  year: number
+  position: string // G / F / C
+  qualifiedPlayers: number
+
+  // basic averages, matching the 7 UI stats
+  pts: number
+  reb: number
+  ast: number
+  stl: number
+  blk: number
+  fgp: number
+  tpp: number
+
+  // advanced averages
+  tsPct: number
+  efgPct: number
+  tovPct: number
+  fg3aRate: number
+  ftRate: number
+}

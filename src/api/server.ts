@@ -10,7 +10,7 @@ import cors from 'cors'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
 import { Pool } from 'pg'
-import { getPlayer, getPlayers, getLeague, getMeta } from './queries'
+import { getPlayer, getPlayers, getLeague, getPositions, getMeta } from './queries'
 
 // Pool tuning: cap connections well under Supabase's pooler limit, and give up on a
 // stuck connection or a hung query instead of leaking one forever.
@@ -76,6 +76,11 @@ app.get('/players/:id', async (req, res) => {
 app.get('/league', async (req, res) => {
   const league = await getLeague(pool)
   res.json(league)
+})
+
+app.get('/positions', async (req, res) => {
+  const positions = await getPositions(pool)
+  res.json(positions)
 })
 
 app.get('/meta', async (req, res) => {

@@ -25,6 +25,7 @@ import { discoverPlayerIds, fetchBio, fetchSeasons } from '../src/espn/client'
 import { ingestPlayer } from '../src/db/ingest'
 import { backfillRoles } from '../src/db/backfillRoles'
 import { computeLeague } from '../src/db/computeLeague'
+import { computePositions } from '../src/db/computePositions'
 import { startScrapeRun, finishScrapeRun } from '../src/db/scrapeRuns'
 import { mapWithConcurrency } from '../src/util/concurrency'
 import {
@@ -94,6 +95,11 @@ async function main(): Promise<void> {
 
     const leagueCount = await computeLeague(pool, { year: currentYear })
     console.log(`recomputed league averages for ${leagueCount} season(s)`)
+
+    // Position averages depend on league_seasons.scheduled_games (just recomputed above), so
+    // this must run after computeLeague.
+    const positionCount = await computePositions(pool, { year: currentYear })
+    console.log(`recomputed position averages: ${positionCount} (year, position) row(s)`)
 
     // Heads-up notification (must never fail the run — the data refresh is done).
     // Diff the featured players' identity and flag any un-named new teams; ping

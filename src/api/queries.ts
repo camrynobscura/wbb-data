@@ -14,6 +14,7 @@ import type {
   Meta,
   PlayerDetail,
   PlayerSummary,
+  PositionSeason,
   Season,
   SeasonPlayed,
 } from './contract'
@@ -201,6 +202,54 @@ export async function getLeague(pool: Pool): Promise<LeagueSeason[]> {
   return rows.map((r) => ({
     year: r.season_year,
     scheduledGames: r.scheduled_games,
+    pts: num3(r.avg_points) ?? 0,
+    reb: num3(r.avg_rebounds) ?? 0,
+    ast: num3(r.avg_assists) ?? 0,
+    stl: num3(r.avg_steals) ?? 0,
+    blk: num3(r.avg_blocks) ?? 0,
+    fgp: num3(r.avg_fg_pct) ?? 0,
+    tpp: num3(r.avg_fg3_pct) ?? 0,
+    tsPct: num3(r.avg_ts_pct) ?? 0,
+    efgPct: num3(r.avg_efg_pct) ?? 0,
+    tovPct: num3(r.avg_tov_pct) ?? 0,
+    fg3aRate: num3(r.avg_fg3a_rate) ?? 0,
+    ftRate: num3(r.avg_ft_rate) ?? 0,
+  }))
+}
+
+// ── position seasons ─────────────────────────────────────────────────────────
+interface PositionRow {
+  season_year: number
+  position: string
+  qualified_players: number
+  avg_points: string | null
+  avg_rebounds: string | null
+  avg_assists: string | null
+  avg_steals: string | null
+  avg_blocks: string | null
+  avg_fg_pct: string | null
+  avg_fg3_pct: string | null
+  avg_ts_pct: string | null
+  avg_efg_pct: string | null
+  avg_tov_pct: string | null
+  avg_fg3a_rate: string | null
+  avg_ft_rate: string | null
+}
+
+/** GET /positions — per-year, per-position averages, ascending by year then position.
+ *  Thin (year, position) samples are absent (min 8 qualified players; see computePositions). */
+export async function getPositions(pool: Pool): Promise<PositionSeason[]> {
+  const { rows } = await pool.query<PositionRow>(
+    `SELECT season_year, position, qualified_players,
+            avg_points, avg_rebounds, avg_assists, avg_steals, avg_blocks,
+            avg_fg_pct, avg_fg3_pct, avg_ts_pct, avg_efg_pct, avg_tov_pct,
+            avg_fg3a_rate, avg_ft_rate
+     FROM position_seasons ORDER BY season_year, position`,
+  )
+  return rows.map((r) => ({
+    year: r.season_year,
+    position: r.position,
+    qualifiedPlayers: r.qualified_players,
     pts: num3(r.avg_points) ?? 0,
     reb: num3(r.avg_rebounds) ?? 0,
     ast: num3(r.avg_assists) ?? 0,
