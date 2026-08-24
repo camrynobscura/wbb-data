@@ -1,13 +1,18 @@
+-- 001_init — baseline schema. This is the full current schema, made idempotent
+-- (IF NOT EXISTS / CREATE OR REPLACE) so it is a safe no-op on the existing live
+-- database and a full build on a fresh one. Migrations are the source of truth for
+-- the schema from here on; later files (002+) make incremental changes.
+
 -- teams is a root table (franchise identity only, references nothing), so it is
 -- created first — players.current_team_id and player_seasons.team_id both point at it.
-CREATE TABLE teams (
+CREATE TABLE IF NOT EXISTS teams (
     id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     espn_id text UNIQUE NOT NULL,
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE TABLE players (
+CREATE TABLE IF NOT EXISTS players (
     id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     espn_id text UNIQUE NOT NULL,
     name text NOT NULL,
@@ -25,7 +30,7 @@ CREATE TABLE players (
     updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE TABLE team_eras (
+CREATE TABLE IF NOT EXISTS team_eras (
     id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     team_id bigint NOT NULL REFERENCES teams(id),
     name text NOT NULL,
@@ -41,7 +46,7 @@ CREATE TABLE team_eras (
     )
 );
 
-CREATE TABLE player_seasons (
+CREATE TABLE IF NOT EXISTS player_seasons (
     id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     player_id bigint NOT NULL REFERENCES players(id),
     season_year smallint NOT NULL,
@@ -90,7 +95,7 @@ CREATE TABLE player_seasons (
     CHECK ( (is_total_row AND team_id IS NULL) OR (NOT is_total_row AND team_id IS NOT NULL) )
 );
 
-CREATE TABLE player_season_stints (
+CREATE TABLE IF NOT EXISTS player_season_stints (
     id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     season_id bigint NOT NULL REFERENCES player_seasons(id),
     team_id bigint NOT NULL REFERENCES teams(id),
@@ -115,7 +120,7 @@ CREATE TABLE player_season_stints (
     UNIQUE (season_id, team_id)
 );
 
-CREATE TABLE league_seasons (
+CREATE TABLE IF NOT EXISTS league_seasons (
     season_year smallint PRIMARY KEY,
     scheduled_games smallint NOT NULL,
     avg_points numeric,
@@ -134,7 +139,7 @@ CREATE TABLE league_seasons (
     updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE TABLE scrape_runs (
+CREATE TABLE IF NOT EXISTS scrape_runs (
     id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     started_at timestamptz NOT NULL DEFAULT now(),
     finished_at timestamptz,
@@ -143,8 +148,10 @@ CREATE TABLE scrape_runs (
     error text
 );
 
-CREATE INDEX ON player_seasons (team_id);
-CREATE INDEX ON player_season_stints (team_id);
+-- Index names are Postgres's own defaults for these columns, so IF NOT EXISTS
+-- matches the indexes already on the live DB (a true no-op there).
+CREATE INDEX IF NOT EXISTS player_seasons_team_id_idx ON player_seasons (team_id);
+CREATE INDEX IF NOT EXISTS player_season_stints_team_id_idx ON player_season_stints (team_id);
 
 -- Each player's CURRENT team resolved to its era-correct name. players.current_team_id
 -- is the authoritative current/last team (parsed from the bio's team ref, so it's

@@ -69,7 +69,7 @@ Requires Node 20+ and a Postgres database.
 npm install
 cp .env.example .env                 # set DATABASE_URL to your Postgres connection string
 
-npx tsx scripts/apply-schema.ts      # create the tables
+npm run migrate                      # create / upgrade the schema (migrations/)
 npx tsx scripts/scrape.ts            # discover + ingest players and seasons from ESPN
 npx tsx scripts/seed-team-eras.ts    # era-accurate team names
 npx tsx scripts/backfill-roles.ts    # 2nd pass: minutes + usage% / assist%
