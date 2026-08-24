@@ -23,6 +23,7 @@ export const FEATURED_ESPN_IDS: string[] = [
   '3065570', // Kelsey Plum
   '3058901', // Allisha Gray
   '4398674', // Rhyne Howard
+  '4066533', // Sabrina Ionescu
 ]
 
 /** One featured player's identity as the DB currently sees it. */
