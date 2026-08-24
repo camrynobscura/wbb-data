@@ -16,14 +16,18 @@ export const FEATURED_ESPN_IDS: string[] = [
   '3142328', // Gabby Williams
   '4433402', // Angel Reese
   '3917450', // Napheesa Collier
+  '1068', // Nneka Ogwumike
+  '4433524', // Sonia Citron
   '3142191', // Kelsey Mitchell
   '3904576', // Marina Mabrey
   '3906949', // Jessica Shepard
   '2529140', // Alyssa Thomas
   '3065570', // Kelsey Plum
-  '3058901', // Allisha Gray
-  '4398674', // Rhyne Howard
   '4066533', // Sabrina Ionescu
+  '4433405', // Kamilla Cardoso
+  '2490553', // Brittney Griner
+  '4398729', // Emily Engstler
+  '5220150', // Dominique Malonga
 ]
 
 /** One featured player's identity as the DB currently sees it. */
