@@ -1,0 +1,41 @@
+name: Nightly data refresh
+
+# Runs the current-season scrape into Supabase every night (historical seasons never
+# change, so only the in-progress year is refreshed) and pings Discord if a featured
+# player's identity changed. Also runnable on demand via the "Run workflow" button.
+on:
+  schedule:
+    # 10:00 UTC daily (~3am PT / 6am ET) — late West-Coast games and ESPN box scores
+    # have settled by then. Cron is always UTC; adjust if the slate shifts.
+    - cron: '0 10 * * *'
+  workflow_dispatch: {}
+
+# Never let two refreshes run at once (a slow run overlapping the next tick). Queue
+# the newer one rather than cancelling a scrape mid-write.
+concurrency:
+  group: nightly-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15 # the full run is ~2 min; this only guards against a hang
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20' # matches package.json engines (>=20); has process.loadEnvFile
+          cache: npm
+
+      - run: npm ci
+
+      - name: Refresh current-season data
+        run: npx tsx scripts/refresh-current.ts
+        env:
+          # Required. Supabase Session-pooler connection string (repo secret).
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          # Change notifications — set whichever you use (Telegram wins if both set).
+          # If neither is set, the notification step just logs and skips.
+          TELEGRAM_URL: ${{ secrets.TELEGRAM_URL }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}

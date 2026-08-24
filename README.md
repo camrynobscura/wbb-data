@@ -4,6 +4,10 @@ The data layer behind **WNBA Arc** — it collects WNBA player histories, comput
 stats from the box score, stores everything in Postgres, and serves it over a small
 read-only API.
 
+**Live API:** [`https://wnba-data-api.onrender.com`](https://wnba-data-api.onrender.com) — Express
+on Render's free tier over Postgres on Supabase, kept warm by a 5-minute uptime ping. Hardened with
+`helmet`, per-IP rate limiting, connection-pool timeouts, and strict CORS to the frontend origin.
+
 ## What it does
 
 - **Ingests** player season histories from ESPN's stats data — identity, per-season box-score

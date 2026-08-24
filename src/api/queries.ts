@@ -11,6 +11,7 @@
 import type { Pool } from 'pg'
 import type {
   LeagueSeason,
+  Meta,
   PlayerDetail,
   PlayerSummary,
   Season,
@@ -156,6 +157,18 @@ export async function getPlayer(pool: Pool, id: string): Promise<PlayerDetail | 
   )
   const played = seasonRes.rows.map((r) => toSeasonPlayed(r, birthYear))
   return { ...toSummary(row), seasons: withMissedSeasons(played) }
+}
+
+// ── data freshness ───────────────────────────────────────────────────────────
+/** GET /meta — finish time of the most recent successful scrape, or null if none. */
+export async function getMeta(pool: Pool): Promise<Meta> {
+  const { rows } = await pool.query<{ finished_at: Date | null }>(
+    `SELECT finished_at FROM scrape_runs
+      WHERE status = 'success' AND finished_at IS NOT NULL
+      ORDER BY finished_at DESC LIMIT 1`,
+  )
+  const finishedAt = rows[0]?.finished_at ?? null
+  return { lastScrapedAt: finishedAt ? finishedAt.toISOString() : null }
 }
 
 // ── league seasons ───────────────────────────────────────────────────────────

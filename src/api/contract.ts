@@ -71,6 +71,15 @@ export interface SeasonMissed {
 }
 
 /**
+ * `GET /meta` — global data-freshness signal for the UI's "Data current as of …"
+ * line. `lastScrapedAt` is the finish time of the most recent SUCCESSFUL scrape
+ * run as an ISO 8601 UTC string, or null if no successful run has completed yet.
+ */
+export interface Meta {
+  lastScrapedAt: string | null
+}
+
+/**
  * Row in `GET /league` — per-year league context (averages + slate length).
  * Feeds the frontend's league-comparison baseline and small-sample denominator.
  * Basic averages mirror the 7 displayed stats; advanced averages support the

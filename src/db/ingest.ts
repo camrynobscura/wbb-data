@@ -1,7 +1,7 @@
 import type { Pool } from 'pg'
 import type { PlayerBio, SeasonRecord } from '../espn/parse'
 import { upsertPlayer } from './players'
-import { upsertTeam } from './teams'
+import { upsertTeam, getTeamIdByEspn } from './teams'
 import { upsertSeason, upsertStint } from './seasons'
 
 /**
@@ -16,6 +16,8 @@ export async function ingestPlayer(
   currentSeasonYear: number,
 ): Promise<void> {
   const teamCache = new Map<number, string>()
+  // Create a team row ONLY from real game data — a season/stint team id is always a
+  // real WNBA franchise the player actually played for.
   const resolveTeam = async (espnTeamId: number): Promise<string> => {
     const cached = teamCache.get(espnTeamId)
     if (cached) return cached
@@ -24,11 +26,9 @@ export async function ingestPlayer(
     return ourId
   }
 
-  // Resolve the bio's current/last team (from its ESPN id) before writing the player.
-  const currentTeamId = bio.currentTeamEspnId
-    ? await resolveTeam(Number(bio.currentTeamEspnId))
-    : null
-  const playerId = await upsertPlayer(pool, bio, currentTeamId)
+  // Write the player first (the FK target for seasons). current_team_id is set
+  // below by lookup, once real team rows exist — never created from the bio.
+  const playerId = await upsertPlayer(pool, bio, null)
 
   for (const season of seasons) {
     const teamId =
@@ -40,6 +40,21 @@ export async function ingestPlayer(
     for (const stint of season.stints) {
       const stintTeamId = await resolveTeam(stint.teamId)
       await upsertStint(pool, seasonId, stintTeamId, stint)
+    }
+  }
+
+  // Set the current/last team from the bio by LOOKUP only — never create a team
+  // from it (see getTeamIdByEspn). ESPN sometimes points a departed player's bio at
+  // her NATIONAL team; that resolves to nothing, so current_team_id stays null (as
+  // upsertPlayer(..., null) already set it). Done after the season loop so the
+  // player's own team already exists on a from-scratch build.
+  if (bio.currentTeamEspnId) {
+    const currentTeamId = await getTeamIdByEspn(pool, bio.currentTeamEspnId)
+    if (currentTeamId) {
+      await pool.query(
+        `UPDATE players SET current_team_id = $2, updated_at = now() WHERE id = $1`,
+        [playerId, currentTeamId],
+      )
     }
   }
 }

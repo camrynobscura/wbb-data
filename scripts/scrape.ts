@@ -5,33 +5,21 @@
  * Run all:          npx tsx scripts/scrape.ts
  * Run first N only:  npx tsx scripts/scrape.ts 5      (handy for testing)
  */
-process.loadEnvFile()
+// Load .env for local dev; in CI (GitHub Actions) there's no file — env vars are
+// injected from repo secrets — so a missing .env is normal; don't crash on it.
+try {
+  process.loadEnvFile()
+} catch {
+  /* no .env present — rely on real environment variables */
+}
 
 import { Pool } from 'pg'
 import { discoverPlayerIds, fetchBio, fetchSeasons } from '../src/espn/client'
 import { ingestPlayer } from '../src/db/ingest'
 import { startScrapeRun, finishScrapeRun } from '../src/db/scrapeRuns'
+import { mapWithConcurrency } from '../src/util/concurrency'
 
 const CONCURRENCY = 5
-
-/** Run `worker` over `items`, at most `limit` in flight at once. */
-async function mapWithConcurrency<T>(
-  items: T[],
-  limit: number,
-  worker: (item: T) => Promise<void>,
-): Promise<void> {
-  let cursor = 0
-  const runners = Array.from(
-    { length: Math.min(limit, items.length) },
-    async () => {
-      while (cursor < items.length) {
-        const item = items[cursor++]
-        if (item !== undefined) await worker(item)
-      }
-    },
-  )
-  await Promise.all(runners)
-}
 
 async function main(): Promise<void> {
   const limitArg = process.argv[2] ? Number(process.argv[2]) : undefined

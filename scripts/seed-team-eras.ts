@@ -6,7 +6,13 @@
  *
  * Run with:  npx tsx scripts/seed-team-eras.ts
  */
-process.loadEnvFile()
+// Load .env for local dev; in CI (GitHub Actions) there's no file — env vars are
+// injected from repo secrets — so a missing .env is normal; don't crash on it.
+try {
+  process.loadEnvFile()
+} catch {
+  /* no .env present — rely on real environment variables */
+}
 
 import { Pool } from 'pg'
 import { fetchTeamName } from '../src/espn/client'
