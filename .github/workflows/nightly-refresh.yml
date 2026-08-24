@@ -21,11 +21,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15 # the full run is ~2 min; this only guards against a hang
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5 # v5 runs on Node 24 (v4 → the Node 20 deprecation warning)
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5 # v5 runs on Node 24
         with:
-          node-version: '20' # matches package.json engines (>=20); has process.loadEnvFile
+          node-version: '22' # current LTS; satisfies package.json engines (>=20)
           cache: npm
 
       - run: npm ci
