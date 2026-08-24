@@ -94,8 +94,6 @@ export async function computeLeague(
   pool: Pool,
   { year }: ComputeLeagueOptions = {},
 ): Promise<number> {
-  const currentYear = new Date().getFullYear()
-
   // Which regular-season years to (re)compute? Scoped to `year` when given.
   const yearsRes = await pool.query<{ season_year: number }>(
     `SELECT DISTINCT season_year FROM player_seasons
@@ -106,10 +104,14 @@ export async function computeLeague(
   const years = yearsRes.rows.map((r) => r.season_year)
 
   // Real slate per season from a team schedule (team 6 = LA Sparks, active since 1997).
-  // Past seasons: completed games only; the current season: full scheduled slate.
+  // Completed games only, every season — for a finished season that's the full slate; for
+  // the in-progress current season it's games elapsed so far, so the small-sample gate and
+  // the qualified-player filter both scale to how much of the season has actually happened
+  // (a regular isn't flagged small-sample just because the season is young). See wnba-arc
+  // deviation.ts (isSmallSample) — the two share SMALL_SAMPLE_FRACTION.
   const slates: Record<number, number> = {}
   for (const y of years) {
-    const n = await fetchScheduledGames('6', y, y !== currentYear)
+    const n = await fetchScheduledGames('6', y, true)
     if (n) slates[y] = n
   }
 
