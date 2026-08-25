@@ -106,6 +106,11 @@ function toSeasonPlayed(r: SeasonRow, birthYear: number | null): SeasonPlayed {
     blk: perGame(r.blocks, gp),
     fgp: ratio(r.fg_made, r.fg_att),
     tpp: ratio(r.fg3_made, r.fg3_att),
+    // Raw pairs too (already selected above) — the frontend pools/gates rate stats from these.
+    fgMade: r.fg_made,
+    fgAtt: r.fg_att,
+    fg3Made: r.fg3_made,
+    fg3Att: r.fg3_att,
     tsPct: num3(r.ts_pct),
     efgPct: num3(r.efg_pct),
     tovPct: num3(r.tov_pct),

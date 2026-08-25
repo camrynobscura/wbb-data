@@ -51,6 +51,15 @@ export interface SeasonPlayed {
   fgp: number | null // fg_made / fg_att; null if 0 attempts
   tpp: number | null // fg3_made / fg3_att; null if 0 attempts
 
+  // Raw makes/attempts behind fgp/tpp. Kept on the wire so the frontend can build rate
+  // baselines by POOLING totals (SUM(made)/SUM(att)) instead of averaging season
+  // percentages, and can gate seasons with too few attempts — a % on a handful of shots is
+  // noise (e.g. 1-for-1 = 100%). Always present (NOT NULL integers in player_seasons).
+  fgMade: number
+  fgAtt: number
+  fg3Made: number
+  fg3Att: number
+
   // ── advanced / role (for a future advanced section) — season RATES ──
   tsPct: number | null
   efgPct: number | null
