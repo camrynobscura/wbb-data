@@ -17,6 +17,8 @@ import type {
   PositionSeason,
   Season,
   SeasonPlayed,
+  StatPctiles,
+  StatSpread,
 } from './contract'
 
 // ── number helpers ───────────────────────────────────────────────────────────
@@ -177,8 +179,44 @@ export async function getMeta(pool: Pool): Promise<Meta> {
   return { lastScrapedAt: finishedAt ? finishedAt.toISOString() : null }
 }
 
+// ── deviation spread + percentile ladders (shared by league + position) ───────
+// migration 004. stddev_* come back as pg numeric strings; pctiles is jsonb already parsed to
+// a JS object of number arrays (deciles). Both are NULL on rows computed before 004.
+interface SpreadRow {
+  stddev_points: string | null
+  stddev_rebounds: string | null
+  stddev_assists: string | null
+  stddev_steals: string | null
+  stddev_blocks: string | null
+  pctiles: { points: number[]; rebounds: number[]; assists: number[]; steals: number[]; blocks: number[] } | null
+}
+// SELECT list for the six 004 columns — kept identical between the two queries.
+const SPREAD_COLS = `stddev_points, stddev_rebounds, stddev_assists, stddev_steals, stddev_blocks, pctiles`
+
+const mapStdev = (r: SpreadRow): StatSpread | null =>
+  r.stddev_points == null
+    ? null
+    : {
+        pts: num3(r.stddev_points) ?? 0,
+        reb: num3(r.stddev_rebounds) ?? 0,
+        ast: num3(r.stddev_assists) ?? 0,
+        stl: num3(r.stddev_steals) ?? 0,
+        blk: num3(r.stddev_blocks) ?? 0,
+      }
+
+const mapPctiles = (r: SpreadRow): StatPctiles | null =>
+  r.pctiles == null
+    ? null
+    : {
+        pts: r.pctiles.points,
+        reb: r.pctiles.rebounds,
+        ast: r.pctiles.assists,
+        stl: r.pctiles.steals,
+        blk: r.pctiles.blocks,
+      }
+
 // ── league seasons ───────────────────────────────────────────────────────────
-interface LeagueRow {
+interface LeagueRow extends SpreadRow {
   season_year: number
   scheduled_games: number
   avg_points: string | null
@@ -201,7 +239,7 @@ export async function getLeague(pool: Pool): Promise<LeagueSeason[]> {
     `SELECT season_year, scheduled_games,
             avg_points, avg_rebounds, avg_assists, avg_steals, avg_blocks,
             avg_fg_pct, avg_fg3_pct, avg_ts_pct, avg_efg_pct, avg_tov_pct,
-            avg_fg3a_rate, avg_ft_rate
+            avg_fg3a_rate, avg_ft_rate, ${SPREAD_COLS}
      FROM league_seasons ORDER BY season_year`,
   )
   return rows.map((r) => ({
@@ -219,11 +257,13 @@ export async function getLeague(pool: Pool): Promise<LeagueSeason[]> {
     tovPct: num3(r.avg_tov_pct) ?? 0,
     fg3aRate: num3(r.avg_fg3a_rate) ?? 0,
     ftRate: num3(r.avg_ft_rate) ?? 0,
+    stdev: mapStdev(r),
+    pctiles: mapPctiles(r),
   }))
 }
 
 // ── position seasons ─────────────────────────────────────────────────────────
-interface PositionRow {
+interface PositionRow extends SpreadRow {
   season_year: number
   position: string
   qualified_players: number
@@ -248,7 +288,7 @@ export async function getPositions(pool: Pool): Promise<PositionSeason[]> {
     `SELECT season_year, position, qualified_players,
             avg_points, avg_rebounds, avg_assists, avg_steals, avg_blocks,
             avg_fg_pct, avg_fg3_pct, avg_ts_pct, avg_efg_pct, avg_tov_pct,
-            avg_fg3a_rate, avg_ft_rate
+            avg_fg3a_rate, avg_ft_rate, ${SPREAD_COLS}
      FROM position_seasons ORDER BY season_year, position`,
   )
   return rows.map((r) => ({
@@ -267,5 +307,7 @@ export async function getPositions(pool: Pool): Promise<PositionSeason[]> {
     tovPct: num3(r.avg_tov_pct) ?? 0,
     fg3aRate: num3(r.avg_fg3a_rate) ?? 0,
     ftRate: num3(r.avg_ft_rate) ?? 0,
+    stdev: mapStdev(r),
+    pctiles: mapPctiles(r),
   }))
 }

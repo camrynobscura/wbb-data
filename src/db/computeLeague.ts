@@ -1,5 +1,6 @@
 import type { Pool } from 'pg'
 import { fetchScheduledGames } from '../espn/client'
+import { pctlLadder } from './spread'
 
 // Must stay equal to the frontend's SMALL_SAMPLE_FRACTION (wnba-arc/src/lib/deviation.ts):
 // the same "too few games to trust" bar decides both which player-seasons the app greys out
@@ -40,7 +41,9 @@ INSERT INTO league_seasons (
   season_year, scheduled_games,
   avg_points, avg_rebounds, avg_assists, avg_steals, avg_blocks, avg_turnovers,
   avg_fg_pct, avg_fg3_pct,
-  avg_ts_pct, avg_efg_pct, avg_tov_pct, avg_fg3a_rate, avg_ft_rate, updated_at
+  avg_ts_pct, avg_efg_pct, avg_tov_pct, avg_fg3a_rate, avg_ft_rate,
+  stddev_points, stddev_rebounds, stddev_assists, stddev_steals, stddev_blocks,
+  pctiles, updated_at
 )
 SELECT
   season_year,
@@ -58,6 +61,20 @@ SELECT
   SUM(turnovers)::numeric / NULLIF(SUM(fg_att) + 0.44 * SUM(ft_att) + SUM(turnovers), 0),
   SUM(fg3_att)::numeric / NULLIF(SUM(fg_att), 0),
   SUM(ft_att)::numeric / NULLIF(SUM(fg_att), 0),
+  -- Population spread of each per-game counting stat (the "one step" the bars measure in),
+  -- and the value-at-decile ladder for the percentile tooltip. See src/db/spread.ts.
+  stddev_pop(points::numeric   / games_played),
+  stddev_pop(rebounds::numeric / games_played),
+  stddev_pop(assists::numeric  / games_played),
+  stddev_pop(steals::numeric   / games_played),
+  stddev_pop(blocks::numeric   / games_played),
+  jsonb_build_object(
+    'points',   ${pctlLadder('points::float8   / games_played')},
+    'rebounds', ${pctlLadder('rebounds::float8 / games_played')},
+    'assists',  ${pctlLadder('assists::float8  / games_played')},
+    'steals',   ${pctlLadder('steals::float8   / games_played')},
+    'blocks',   ${pctlLadder('blocks::float8   / games_played')}
+  ),
   now()
 FROM qualified
 GROUP BY season_year
@@ -76,6 +93,12 @@ ON CONFLICT (season_year) DO UPDATE SET
   avg_tov_pct    = EXCLUDED.avg_tov_pct,
   avg_fg3a_rate  = EXCLUDED.avg_fg3a_rate,
   avg_ft_rate    = EXCLUDED.avg_ft_rate,
+  stddev_points  = EXCLUDED.stddev_points,
+  stddev_rebounds= EXCLUDED.stddev_rebounds,
+  stddev_assists = EXCLUDED.stddev_assists,
+  stddev_steals  = EXCLUDED.stddev_steals,
+  stddev_blocks  = EXCLUDED.stddev_blocks,
+  pctiles        = EXCLUDED.pctiles,
   updated_at     = now()
 `
 

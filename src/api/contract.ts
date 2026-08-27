@@ -89,6 +89,31 @@ export interface Meta {
 }
 
 /**
+ * The five COUNTING stats carry a spread + percentile ladder (the deviation bars measure in
+ * "league-steps" = distance ÷ spread; the shooting %s keep their relative-% bar, so they get
+ * neither). Both are per-season and describe that season's qualified-player population.
+ */
+export interface StatSpread {
+  pts: number
+  reb: number
+  ast: number
+  stl: number
+  blk: number
+}
+/**
+ * Value-at-percentile ladder per counting stat: 11 values at the 0,10,…,100th percentiles
+ * (deciles) of that stat across the season's qualified players. The frontend interpolates a
+ * player's value into a percentile from this ladder — the decile spacing is the contract.
+ */
+export interface StatPctiles {
+  pts: number[]
+  reb: number[]
+  ast: number[]
+  stl: number[]
+  blk: number[]
+}
+
+/**
  * Row in `GET /league` — per-year league context (averages + slate length).
  * Feeds the frontend's league-comparison baseline and small-sample denominator.
  * Basic averages mirror the 7 displayed stats; advanced averages support the
@@ -113,6 +138,12 @@ export interface LeagueSeason {
   tovPct: number
   fg3aRate: number
   ftRate: number
+
+  // Spread (population stddev) + percentile ladders of the counting stats — the deviation
+  // bars' ruler and the tooltip's percentile. Null on rows computed before migration 004
+  // (the frontend then falls back to the old relative-% bar). See src/db/spread.ts.
+  stdev: StatSpread | null
+  pctiles: StatPctiles | null
 }
 
 /**
@@ -142,4 +173,9 @@ export interface PositionSeason {
   tovPct: number
   fg3aRate: number
   ftRate: number
+
+  // The POSITION's own spread + percentile ladders (see StatSpread/StatPctiles). Position bars
+  // measure against how this position varies. Null on pre-004 rows.
+  stdev: StatSpread | null
+  pctiles: StatPctiles | null
 }

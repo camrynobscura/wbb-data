@@ -1,4 +1,5 @@
 import type { Pool } from 'pg'
+import { pctlLadder } from './spread'
 
 // Minimum qualified players for a (season, position) to get a stored average. Below this the
 // row is omitted → the app shows "no same-position sample that season" instead of a noisy
@@ -26,7 +27,9 @@ INSERT INTO position_seasons (
   season_year, position, qualified_players,
   avg_points, avg_rebounds, avg_assists, avg_steals, avg_blocks, avg_turnovers,
   avg_fg_pct, avg_fg3_pct,
-  avg_ts_pct, avg_efg_pct, avg_tov_pct, avg_fg3a_rate, avg_ft_rate, updated_at
+  avg_ts_pct, avg_efg_pct, avg_tov_pct, avg_fg3a_rate, avg_ft_rate,
+  stddev_points, stddev_rebounds, stddev_assists, stddev_steals, stddev_blocks,
+  pctiles, updated_at
 )
 SELECT
   ps.season_year,
@@ -45,6 +48,20 @@ SELECT
   SUM(ps.turnovers)::numeric / NULLIF(SUM(ps.fg_att) + 0.44 * SUM(ps.ft_att) + SUM(ps.turnovers), 0),
   SUM(ps.fg3_att)::numeric / NULLIF(SUM(ps.fg_att), 0),
   SUM(ps.ft_att)::numeric / NULLIF(SUM(ps.fg_att), 0),
+  -- Position's own spread + percentile ladder (per-game counting stats) — the position bars
+  -- measure against how THIS position varies, not the whole league. See src/db/spread.ts.
+  stddev_pop(ps.points::numeric   / ps.games_played),
+  stddev_pop(ps.rebounds::numeric / ps.games_played),
+  stddev_pop(ps.assists::numeric  / ps.games_played),
+  stddev_pop(ps.steals::numeric   / ps.games_played),
+  stddev_pop(ps.blocks::numeric   / ps.games_played),
+  jsonb_build_object(
+    'points',   ${pctlLadder('ps.points::float8   / ps.games_played')},
+    'rebounds', ${pctlLadder('ps.rebounds::float8 / ps.games_played')},
+    'assists',  ${pctlLadder('ps.assists::float8  / ps.games_played')},
+    'steals',   ${pctlLadder('ps.steals::float8   / ps.games_played')},
+    'blocks',   ${pctlLadder('ps.blocks::float8   / ps.games_played')}
+  ),
   now()
 FROM player_seasons ps
 JOIN players p         ON p.id = ps.player_id
