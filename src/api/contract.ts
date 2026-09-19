@@ -60,6 +60,16 @@ export interface SeasonPlayed {
   fg3Made: number
   fg3Att: number
 
+  // ── league rank (counting stats only) ──
+  // `pool` = how many player-seasons qualified for that year's league averages (>= SMALL_SAMPLE_FRACTION
+  // of the slate — the same set the ladders and stddevs are computed from, so "3rd of 141" and the
+  // percentile never disagree). Null only if the year has no league row. `rank` = this season's place in
+  // that pool per stat, 1 = best, ties share a rank (RANK(), so 1, 1, 3); null when the season itself
+  // didn't qualify (small sample) or there's no pool. NOTE the pool is players in THIS database — complete
+  // for the roster window (last 3 seasons), only "still-active players" for older years (TRIAGE).
+  pool: number | null
+  rank: { pts: number; reb: number; ast: number; stl: number; blk: number } | null
+
   // ── advanced / role (for a future advanced section) — season RATES ──
   tsPct: number | null
   efgPct: number | null

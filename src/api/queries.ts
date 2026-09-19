@@ -9,6 +9,7 @@
  *    precision — we Number() them.
  */
 import type { Pool } from 'pg'
+import { SMALL_SAMPLE_FRACTION } from '../db/computeLeague'
 import type {
   LeagueSeason,
   Meta,
@@ -93,13 +94,60 @@ interface SeasonRow {
   treb_pct: string | null
 }
 
-function toSeasonPlayed(r: SeasonRow, birthYear: number | null): SeasonPlayed {
+interface RankRow {
+  season_year: number
+  pool: string // bigint from COUNT(*) OVER — pg returns it as text
+  r_pts: string | null
+  r_reb: string | null
+  r_ast: string | null
+  r_stl: string | null
+  r_blk: string | null
+}
+
+// Where each of a player's seasons ranks among that year's QUALIFIED player-seasons — the same pool
+// computeLeague.ts averages over (>= SMALL_SAMPLE_FRACTION of the stored slate), so rank and percentile
+// describe the same crowd. One window pass over the player's years only; the player's own rows are
+// then picked out. A season that doesn't qualify gets no row here → rank null, pool still known.
+const RANK_SQL = `
+WITH pool AS (
+  SELECT ps.player_id, ps.season_year, ps.games_played,
+         ps.points, ps.rebounds, ps.assists, ps.steals, ps.blocks
+  FROM player_seasons ps
+  JOIN league_seasons ls ON ls.season_year = ps.season_year
+  WHERE ps.season_type = 2
+    AND ps.games_played >= $2::numeric * ls.scheduled_games
+    AND ps.season_year IN (SELECT season_year FROM player_seasons WHERE player_id = $1 AND season_type = 2)
+),
+ranked AS (
+  SELECT player_id, season_year,
+         COUNT(*) OVER (PARTITION BY season_year) AS pool,
+         RANK() OVER (PARTITION BY season_year ORDER BY points::numeric   / games_played DESC) AS r_pts,
+         RANK() OVER (PARTITION BY season_year ORDER BY rebounds::numeric / games_played DESC) AS r_reb,
+         RANK() OVER (PARTITION BY season_year ORDER BY assists::numeric  / games_played DESC) AS r_ast,
+         RANK() OVER (PARTITION BY season_year ORDER BY steals::numeric   / games_played DESC) AS r_stl,
+         RANK() OVER (PARTITION BY season_year ORDER BY blocks::numeric   / games_played DESC) AS r_blk
+  FROM pool
+),
+pools AS (SELECT season_year, COUNT(*) AS pool FROM pool GROUP BY season_year)
+SELECT p.season_year, p.pool,
+       r.r_pts, r.r_reb, r.r_ast, r.r_stl, r.r_blk
+FROM pools p
+LEFT JOIN ranked r ON r.season_year = p.season_year AND r.player_id = $1
+ORDER BY p.season_year`
+
+function toSeasonPlayed(r: SeasonRow, birthYear: number | null, rk: RankRow | undefined): SeasonPlayed {
   const gp = r.games_played
+  const rank =
+    rk && rk.r_pts != null
+      ? { pts: Number(rk.r_pts), reb: Number(rk.r_reb), ast: Number(rk.r_ast), stl: Number(rk.r_stl), blk: Number(rk.r_blk) }
+      : null
   return {
     year: r.season_year,
     played: true,
     age: birthYear === null ? null : r.season_year - birthYear,
     gp,
+    pool: rk ? Number(rk.pool) : null,
+    rank,
     min: r.minutes === null ? null : perGame(Number(r.minutes), gp),
     pts: perGame(r.points, gp),
     reb: perGame(r.rebounds, gp),
@@ -163,7 +211,9 @@ export async function getPlayer(pool: Pool, id: string): Promise<PlayerDetail | 
      ORDER BY season_year`,
     [id],
   )
-  const played = seasonRes.rows.map((r) => toSeasonPlayed(r, birthYear))
+  const rankRes = await pool.query<RankRow>(RANK_SQL, [id, SMALL_SAMPLE_FRACTION])
+  const rankByYear = new Map(rankRes.rows.map((r) => [r.season_year, r]))
+  const played = seasonRes.rows.map((r) => toSeasonPlayed(r, birthYear, rankByYear.get(r.season_year)))
   return { ...toSummary(row), seasons: withMissedSeasons(played) }
 }
 

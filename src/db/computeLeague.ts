@@ -5,7 +5,7 @@ import { pctlLadder } from './spread'
 // Must stay equal to the frontend's SMALL_SAMPLE_FRACTION (wnba-arc/src/lib/deviation.ts):
 // the same "too few games to trust" bar decides both which player-seasons the app greys out
 // AND which players qualify for these league averages. One concept, two repos — keep it paired.
-const SMALL_SAMPLE_FRACTION = 0.25
+export const SMALL_SAMPLE_FRACTION = 0.25
 
 // $1 = a JSON map {season_year: real_slate} we fetched from team schedules (missing seasons
 //      fall back to MAX(games_played) over single-team rows).
