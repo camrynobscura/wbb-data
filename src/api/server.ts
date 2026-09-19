@@ -33,8 +33,14 @@ app.set('trust proxy', 1)
 // Safe default security headers; also drops the X-Powered-By: Express tell.
 app.use(helmet())
 
-// Only our frontend's browser origin may read this API, and only via GET.
-app.use(cors({ origin: process.env.CORS_ORIGIN ?? 'http://localhost:5173', methods: ['GET'] }))
+// Only our frontend's browser origin may read this API, and only via GET. In prod CORS_ORIGIN
+// is set (the Netlify URL) and stays an exact match. When it's UNSET — local dev — accept any
+// localhost port rather than one hard-coded one: Vite silently takes the next free port when
+// 5173 is busy, and an exact-5173 default then CORS-blocks every request, which surfaces in the
+// app as a baffling "data not found". Dev-only, GET-only, localhost-only. 127.0.0.1 is included
+// because a browser treats it as a different origin from localhost.
+const corsOrigin = process.env.CORS_ORIGIN ?? /^http:\/\/(localhost|127\.0\.0\.1):\d+$/
+app.use(cors({ origin: corsOrigin, methods: ['GET'] }))
 
 // Abuse guard: an open, unauthenticated API on a free DB tier shouldn't be hammerable.
 // 100/min/IP is far above real use (the SPA makes a handful of calls per visit).
