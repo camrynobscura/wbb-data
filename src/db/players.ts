@@ -18,6 +18,7 @@ export async function upsertPlayer(
     name: bio.name,
     position: bio.position,
     jersey: bio.jersey,
+    active: bio.active,
     current_team_id: currentTeamId,
     height: bio.height,
     weight: bio.weight,

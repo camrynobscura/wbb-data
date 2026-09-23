@@ -150,6 +150,9 @@ export interface PlayerBio {
   name: string
   position: string | null
   jersey: number | null
+  /** ESPN's own flag — false for a retired player. Gates current-team resolution: a retired
+      bio's team ref is unreliable (it can name a franchise she never played for). */
+  active: boolean
   currentTeamEspnId: string | null // ESPN team id from the bio's team ref (current/last team)
   height: number | null
   weight: number | null
@@ -165,24 +168,42 @@ export interface PlayerBio {
 interface EspnAthlete {
   id: string
   displayName: string
+  active?: boolean
   height?: number
   weight?: number
   dateOfBirth?: string
   jersey?: string
-  position?: { abbreviation?: string }
+  position?: { id?: string; abbreviation?: string }
   team?: { $ref?: string }
   headshot?: { href?: string }
   draft?: { year?: number; round?: number; selection?: number }
+}
+
+/**
+ * ESPN's `positions/0` "Not Available" (abbreviation "NA") is a placeholder, not a position —
+ * most players from before ~2012 carry it, on the bio and on every season row alike (measured
+ * 2026-09-23: 5% of 1997's players have a real one, 100% from 2012 on). It must never be stored,
+ * or "NA" becomes a position bucket of its own.
+ */
+function parsePosition(position: EspnAthlete['position']): string | null {
+  const abbreviation = position?.abbreviation
+  if (!abbreviation || abbreviation === 'NA' || position?.id === '0') return null
+  return abbreviation
 }
 
 /** Parse the core athlete endpoint into our bio shape. */
 export function parseBio(athlete: EspnAthlete): PlayerBio {
   return {
     espnId: athlete.id,
-    name: athlete.displayName,
-    position: athlete.position?.abbreviation ?? null,
+    // Some older names arrive with doubled spaces ("Deanna  Nolan") — collapse them, or the
+    // name is ugly and its URL slug becomes "deanna--nolan".
+    name: athlete.displayName.replace(/\s+/g, ' ').trim(),
+    position: parsePosition(athlete.position),
     // ESPN gives jersey as a string ("22"); empty/absent → null. "00" collapses to 0.
     jersey: athlete.jersey ? Number(athlete.jersey) : null,
+    // Every bio seen carries the flag (true for current players, false for retired ones); if it
+    // were ever absent, assume active so the current team still resolves as it always has.
+    active: athlete.active ?? true,
     // team is a $ref URL that embeds the id: ".../teams/9?..." → "9" (null if absent).
     currentTeamEspnId: athlete.team?.$ref?.match(/\/teams\/(\d+)/)?.[1] ?? null,
     height: athlete.height ?? null,

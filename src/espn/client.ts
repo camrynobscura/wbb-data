@@ -5,6 +5,8 @@ import {
   type PlayerBio,
   type SeasonRecord,
 } from './parse'
+import { countRegularSeasonGames, type ScheduleEvent } from './schedule'
+import { FIRST_WNBA_SEASON, windowStart } from '../seasons'
 
 // Honest, non-browser User-Agent (no personal contact info sent to ESPN).
 const USER_AGENT = 'wnba-data/0.1 (personal research project)'
@@ -46,18 +48,23 @@ async function fetchJson<T>(url: string): Promise<T> {
 
 const BYATHLETE =
   'https://site.web.api.espn.com/apis/common/v3/sports/basketball/wnba/statistics/byathlete'
-const ROSTER_WINDOW_YEARS = 3
+// 2 = regular season, 3 = playoffs — both, so a player who appeared ONLY in the playoffs
+// (injured all regular season, back for the postseason) still makes the universe.
 const SEASON_TYPES = [2, 3]
 
 interface ByAthleteResponse {
   athletes?: { athlete: { id: string } }[]
 }
 
-/** The rolling-window player universe: every athlete in the last N seasons. */
-export async function discoverPlayerIds(currentYear: number): Promise<string[]> {
+/**
+ * Every athlete who appeared in any (season, type) from `fromYear` through `toYear`,
+ * deduplicated. One list per (year, type): `isqualified=false` keeps the low-minute players
+ * the default would drop, and `limit=1000` is the whole list in one page (the largest season,
+ * 2026, has 237). Works for every season back to 1997 (verified 2026-09-23).
+ */
+export async function discoverPlayerIds(fromYear: number, toYear: number): Promise<string[]> {
   const ids = new Set<string>()
-  for (let i = 0; i < ROSTER_WINDOW_YEARS; i++) {
-    const year = currentYear - i
+  for (let year = fromYear; year <= toYear; year++) {
     for (const seasonType of SEASON_TYPES) {
       const url = `${BYATHLETE}?season=${year}&seasontype=${seasonType}&limit=1000&isqualified=false`
       const data = await fetchJson<ByAthleteResponse>(url)
@@ -68,6 +75,14 @@ export async function discoverPlayerIds(currentYear: number): Promise<string[]> 
   }
   return [...ids]
 }
+
+/** D1 · the rolling-window universe: everyone in the last ROSTER_WINDOW_YEARS seasons. */
+export const discoverCurrentPlayerIds = (currentYear: number): Promise<string[]> =>
+  discoverPlayerIds(windowStart(currentYear), currentYear)
+
+/** The whole league: everyone who has played since the WNBA's first season. */
+export const discoverAllPlayerIds = (currentYear: number): Promise<string[]> =>
+  discoverPlayerIds(FIRST_WNBA_SEASON, currentYear)
 
 // ─── Per-player fetch (Pass B) ────────────────────────────────────────────────
 
@@ -161,37 +176,23 @@ export async function fetchTeamTotals(
   return { fga, fta, tov, assists, fgMade, games }
 }
 
-/** The real regular-season length for a year = count of type-2 games on a team's
- *  schedule. Fixes the in-progress season, where max-games-played understates it. */
 /**
- * How many regular-season (type 2) games are on a team's schedule for a season.
- *  - completedOnly=true  → count only games actually played (status completed).
- *    Use for FINISHED seasons so a postponed-and-never-replayed game (e.g. the
- *    2020 walkout game) isn't counted: LA 2020 = 22 played, not 23 scheduled.
- *  - completedOnly=false → count every scheduled type-2 game, including future
- *    dates. Use for the IN-PROGRESS season to get the full intended slate (44),
- *    which the games-so-far count would understate.
+ * The regular-season slate for a season, from one team's schedule — the small-sample
+ * denominator. `inProgress` selects the rule (see countRegularSeasonGames in ./schedule.ts:
+ * a past season counts every game that wasn't postponed or cancelled, the in-progress season
+ * only the games completed so far). Null when the schedule is unavailable, so the caller can
+ * fall back to max games played.
  */
 export async function fetchScheduledGames(
   teamId: string,
   year: number,
-  completedOnly = false,
+  inProgress: boolean,
 ): Promise<number | null> {
-  const data = await fetchJsonOrNull<{
-    events?: {
-      seasonType?: { type?: number }
-      competitions?: { status?: { type?: { completed?: boolean } } }[]
-    }[]
-  }>(
+  const data = await fetchJsonOrNull<{ events?: ScheduleEvent[] }>(
     `https://site.api.espn.com/apis/site/v2/sports/basketball/wnba/teams/${teamId}/schedule?season=${year}`,
   )
   if (!data) return null
-  const regular = (data.events ?? []).filter((e) => {
-    if (e.seasonType?.type !== 2) return false
-    if (!completedOnly) return true
-    return e.competitions?.[0]?.status?.type?.completed === true
-  })
-  return regular.length || null
+  return countRegularSeasonGames(data.events ?? [], inProgress) || null
 }
 
 /** Era-accurate team name + abbreviation for a specific season (null if none). */

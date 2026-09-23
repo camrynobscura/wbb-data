@@ -17,15 +17,23 @@
  *    canonical row. Playoffs are a later toggle.
  */
 
-/** Row in `GET /players` — the select-screen list (no seasons, keep it light). */
+/**
+ * Row in `GET /players` — the select-screen list (no seasons, keep it light).
+ * `?scope=current` (the default) lists the rolling window — anyone with a season in the last
+ * 3 years, the set the app has always shown; `?scope=all` lists every player on record since
+ * 1997, retired included.
+ */
 export interface PlayerSummary {
   id: string // DB players.id, stringified
   espn: string // players.espn_id — the frontend builds the headshot URL from this
   name: string
-  team: string | null // current-era name of the player's current team; null if off-roster
+  team: string | null // current-era name of the player's current team; null if off-roster or retired
   teamAbbr: string | null
   pos: string | null // players.position
   jersey: number | null // scraped from the bio endpoint (Phase 3 add)
+  active: boolean // ESPN's "still playing" flag; false once retired (a retired player has no team)
+  firstYear: number | null // first and last regular season on record — the career span;
+  lastYear: number | null //  null only for a player with no regular-season row
 }
 
 /** `GET /players/:id` — one player with full career. */
@@ -65,12 +73,14 @@ export interface SeasonPlayed {
   // of the slate — the same set the ladders and stddevs are computed from, so "3rd of 141" and the
   // percentile never disagree). Null only if the year has no league row. `rank` = this season's place in
   // that pool per stat, 1 = best, ties share a rank (RANK(), so 1, 1, 3); null when the season itself
-  // didn't qualify (small sample) or there's no pool. NOTE the pool is players in THIS database — complete
-  // for the roster window (last 3 seasons), only "still-active players" for older years (TRIAGE).
+  // didn't qualify (small sample) or there's no pool. The pool is every qualified player on record for
+  // that season — the whole league, since every player who has played since 1997 is on record.
   pool: number | null
   rank: { pts: number; reb: number; ast: number; stl: number; blk: number } | null
   // The same two, among the player's OWN POSITION that year — the crowd the /positions averages
-  // describe, gated the same way (>= 8 qualified players, computePositions.MIN_QUALIFIED): where
+  // describe, gated the same way: the bucket has >= 8 qualified players (computePositions.MIN_QUALIFIED)
+  // AND every qualified player that year has a known position (ESPN has none for most pre-2012
+  // players, so a position crowd for those years would be incomplete — migration 005). Where
   // /positions has no (year, position) row, both are null. Also null when the player has no position.
   // The position is the player's current one (players.position), as for the position averages.
   posPool: number | null

@@ -17,6 +17,13 @@ export interface BackfillOptions {
    * which by definition never change.
    */
   year?: number
+  /**
+   * Only seasons with no minutes yet — the incremental case after adding players (the
+   * full-history build adds ~5,000 seasons beside ~2,100 already filled, which would
+   * otherwise all be re-fetched). A season ESPN has no minutes for stays null and is
+   * simply re-tried next time: cheap, and the honest answer doesn't change.
+   */
+  missingOnly?: boolean
 }
 
 export interface BackfillResult {
@@ -34,10 +41,11 @@ export interface BackfillResult {
  */
 export async function backfillRoles(
   pool: Pool,
-  { year }: BackfillOptions = {},
+  { year, missingOnly = false }: BackfillOptions = {},
 ): Promise<BackfillResult> {
   // $1 is the optional year filter: when null the `$1::int IS NULL` branch is
   // always true, so every season is selected; when set, only that year's rows.
+  // $2 narrows to seasons still missing minutes when true; false selects them all.
   const { rows } = await pool.query(
     `
     SELECT ps.id, ps.season_year, ps.season_type, ps.is_total_row,
@@ -46,9 +54,10 @@ export async function backfillRoles(
     FROM player_seasons ps
     JOIN players p ON p.id = ps.player_id
     LEFT JOIN teams t ON t.id = ps.team_id
-    WHERE $1::int IS NULL OR ps.season_year = $1::int
+    WHERE ($1::int IS NULL OR ps.season_year = $1::int)
+      AND (NOT $2::boolean OR ps.minutes IS NULL)
   `,
-    [year ?? null],
+    [year ?? null, missingOnly],
   )
 
   // Cache team totals by (team, year, type) — many players share each.

@@ -247,6 +247,7 @@ describe('parseBio', () => {
         weight: 145,
         dateOfBirth: '1994-08-24T07:00Z',
         jersey: '10',
+        active: true,
         position: { abbreviation: 'G' },
         team: { $ref: 'http://sports.core.api.espn.com/v2/sports/basketball/leagues/wnba/seasons/2024/teams/17?lang=en' },
         headshot: { href: 'https://a.espncdn.com/i/headshots/wnba/players/full/3065570.png' },
@@ -257,6 +258,7 @@ describe('parseBio', () => {
       name: 'Kelsey Plum',
       position: 'G',
       jersey: 10,
+      active: true,
       currentTeamEspnId: '17',
       height: 68,
       weight: 145,
@@ -274,6 +276,7 @@ describe('parseBio', () => {
       name: 'Rookie Intl',
       position: null,
       jersey: null,
+      active: true, // absent → assumed active
       currentTeamEspnId: null,
       height: null,
       weight: null,
@@ -283,5 +286,25 @@ describe('parseBio', () => {
       draftPick: null,
       headshotUrl: null,
     })
+  })
+
+  it('keeps a retired player inactive', () => {
+    expect(parseBio({ id: '141', displayName: 'Cynthia Cooper', active: false }).active).toBe(false)
+  })
+
+  it('collapses doubled spaces in a name', () => {
+    expect(parseBio({ id: '312', displayName: 'Deanna  Nolan' }).name).toBe('Deanna Nolan')
+    expect(parseBio({ id: '369', displayName: ' Tangela  Smith ' }).name).toBe('Tangela Smith')
+  })
+
+  it('treats ESPN\'s "Not Available" position placeholder as no position', () => {
+    // positions/0 — what ESPN returns for most players who played before ~2012, on the bio and
+    // on every season row alike (Cynthia Cooper, Sheryl Swoopes…). Never a position of its own.
+    const cooper = { id: '141', displayName: 'Cynthia Cooper' }
+    expect(parseBio({ ...cooper, position: { id: '0', abbreviation: 'NA' } }).position).toBeNull()
+    expect(parseBio({ ...cooper, position: { abbreviation: 'NA' } }).position).toBeNull()
+    expect(parseBio({ ...cooper, position: { id: '0' } }).position).toBeNull()
+    // A real position still comes through untouched.
+    expect(parseBio({ ...cooper, position: { id: '3', abbreviation: 'G' } }).position).toBe('G')
   })
 })

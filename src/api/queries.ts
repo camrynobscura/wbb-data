@@ -11,6 +11,7 @@
 import type { Pool } from 'pg'
 import { SMALL_SAMPLE_FRACTION } from '../db/computeLeague'
 import { MIN_QUALIFIED } from '../db/computePositions'
+import { currentSeason, windowStart } from '../seasons'
 import type {
   LeagueSeason,
   Meta,
@@ -41,15 +42,25 @@ interface SummaryRow {
   name: string
   position: string | null
   jersey: number | null
+  active: boolean
+  birth_date: string | null
   team_name: string | null
   team_abbr: string | null
+  first_year: number | null
+  last_year: number | null
 }
 
+// One SELECT for the list and the detail. first/last year come from the regular seasons on
+// record (a player with only playoff rows would read null for both).
 const SUMMARY_SELECT = `
-  SELECT p.id, p.espn_id, p.name, p.position, p.jersey,
-         v.team_name, v.team_abbr
+  SELECT p.id, p.espn_id, p.name, p.position, p.jersey, p.active, p.birth_date,
+         v.team_name, v.team_abbr, y.first_year, y.last_year
   FROM players p
-  LEFT JOIN player_current_team v ON v.player_id = p.id`
+  LEFT JOIN player_current_team v ON v.player_id = p.id
+  LEFT JOIN (
+    SELECT player_id, MIN(season_year) AS first_year, MAX(season_year) AS last_year
+    FROM player_seasons WHERE season_type = 2 GROUP BY player_id
+  ) y ON y.player_id = p.id`
 
 function toSummary(r: SummaryRow): PlayerSummary {
   return {
@@ -60,12 +71,28 @@ function toSummary(r: SummaryRow): PlayerSummary {
     teamAbbr: r.team_abbr,
     pos: r.position,
     jersey: r.jersey,
+    active: r.active,
+    firstYear: r.first_year,
+    lastYear: r.last_year,
   }
 }
 
-/** GET /players — the select-screen list, alphabetical. */
-export async function getPlayers(pool: Pool): Promise<PlayerSummary[]> {
-  const { rows } = await pool.query<SummaryRow>(`${SUMMARY_SELECT} ORDER BY p.name`)
+/** Which players GET /players lists — see getPlayers. */
+export type PlayerScope = 'current' | 'all'
+
+/**
+ * GET /players — alphabetical. `current` (the default) is the rolling window (D1): anyone with a
+ * season, regular or playoff, in the last ROSTER_WINDOW_YEARS years — the universe the app has
+ * always shown, now derived from the data rather than from what was ingested. `all` is every
+ * player in the database, retired included, for a client that shows league history.
+ */
+export async function getPlayers(pool: Pool, scope: PlayerScope = 'current'): Promise<PlayerSummary[]> {
+  const inWindow = `WHERE EXISTS (
+    SELECT 1 FROM player_seasons ps WHERE ps.player_id = p.id AND ps.season_year >= $1)`
+  const { rows } = await pool.query<SummaryRow>(
+    `${SUMMARY_SELECT} ${scope === 'all' ? '' : inWindow} ORDER BY p.name`,
+    scope === 'all' ? [] : [windowStart(currentSeason())],
+  )
   return rows.map(toSummary)
 }
 
@@ -118,8 +145,11 @@ interface RankRow {
 // describe the same crowd. One window pass over the player's years only; the player's own rows are
 // then picked out. A season that doesn't qualify gets no row here → rank null, pool still known.
 // A second set of windows partitions by position — the same crowd computePositions.ts averages
-// over, gated the same way ($3 = MIN_QUALIFIED) so a position rank exists only where the position
-// average does.
+// over, gated the same two ways so a position rank exists only where the position average does:
+// the bucket has >= $3 (MIN_QUALIFIED) players, AND the season is position-complete — every
+// qualified player that year has a position (league_seasons.qualified_with_position =
+// qualified_players, migration 005; ESPN has no position for most pre-2012 players). The
+// completeness check lives in pos_pools, so an incomplete year simply has no position pool.
 const RANK_SQL = `
 WITH pool AS (
   SELECT ps.player_id, ps.season_year, ps.games_played, p.position,
@@ -148,9 +178,12 @@ ranked AS (
 ),
 pools AS (SELECT season_year, COUNT(*) AS pool FROM pool GROUP BY season_year),
 pos_pools AS (
-  SELECT season_year, COUNT(*) AS pos_pool FROM pool
-  WHERE position = (SELECT position FROM players WHERE id = $1)
-  GROUP BY season_year
+  SELECT pool.season_year, COUNT(*) AS pos_pool
+  FROM pool
+  JOIN league_seasons ls ON ls.season_year = pool.season_year
+  WHERE pool.position = (SELECT position FROM players WHERE id = $1)
+    AND ls.qualified_with_position = ls.qualified_players
+  GROUP BY pool.season_year
 )
 SELECT p.season_year, p.pool,
        r.r_pts, r.r_reb, r.r_ast, r.r_stl, r.r_blk,
@@ -225,14 +258,7 @@ function withMissedSeasons(played: SeasonPlayed[]): Season[] {
 
 /** GET /players/:id — one player + full regular-season history. null if not found. */
 export async function getPlayer(pool: Pool, id: string): Promise<PlayerDetail | null> {
-  const summaryRes = await pool.query<SummaryRow & { birth_date: string | null }>(
-    `SELECT p.id, p.espn_id, p.name, p.position, p.jersey, p.birth_date,
-            v.team_name, v.team_abbr
-     FROM players p
-     LEFT JOIN player_current_team v ON v.player_id = p.id
-     WHERE p.id = $1`,
-    [id],
-  )
+  const summaryRes = await pool.query<SummaryRow>(`${SUMMARY_SELECT} WHERE p.id = $1`, [id])
   const row = summaryRes.rows[0]
   if (!row) return null
   const birthYear = row.birth_date ? new Date(row.birth_date).getUTCFullYear() : null

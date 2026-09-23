@@ -1,5 +1,6 @@
 import type { Pool } from 'pg'
 import { fetchScheduledGames } from '../espn/client'
+import { currentSeason } from '../seasons'
 import { pctlLadder } from './spread'
 
 // Must stay equal to the frontend's SMALL_SAMPLE_FRACTION (wnba-arc/src/lib/deviation.ts):
@@ -12,6 +13,11 @@ export const SMALL_SAMPLE_FRACTION = 0.25
 // $2 = the small-sample fraction; a season qualifies at >= $2 of its slate.
 // $3 = optional single season year to (re)compute; NULL recomputes every year. Filtering
 //      player_max scopes the whole chain, since sched/qualified derive from it.
+// Besides the averages, each row records how many player-seasons qualified and how many of
+// those belong to a player with a known position (migration 005). ESPN has no position for
+// most pre-2012 players, so a per-position average or rank is only honest for a season where
+// the two counts are equal — computePositions.ts and the API's RANK_SQL both check that here
+// rather than each deciding for itself.
 const SQL = `
 WITH player_max AS (
   SELECT season_year,
@@ -31,14 +37,15 @@ sched AS (
   LEFT JOIN fetched f ON f.season_year = pm.season_year
 ),
 qualified AS (
-  SELECT ps.*, s.scheduled_games
+  SELECT ps.*, s.scheduled_games, p.position
   FROM player_seasons ps
-  JOIN sched s ON s.season_year = ps.season_year
+  JOIN sched s   ON s.season_year = ps.season_year
+  JOIN players p ON p.id = ps.player_id
   WHERE ps.season_type = 2
     AND ps.games_played >= $2::numeric * s.scheduled_games
 )
 INSERT INTO league_seasons (
-  season_year, scheduled_games,
+  season_year, scheduled_games, qualified_players, qualified_with_position,
   avg_points, avg_rebounds, avg_assists, avg_steals, avg_blocks, avg_turnovers,
   avg_fg_pct, avg_fg3_pct,
   avg_ts_pct, avg_efg_pct, avg_tov_pct, avg_fg3a_rate, avg_ft_rate,
@@ -48,6 +55,8 @@ INSERT INTO league_seasons (
 SELECT
   season_year,
   MAX(scheduled_games),
+  COUNT(*),
+  COUNT(*) FILTER (WHERE position IS NOT NULL),
   AVG(points::numeric    / games_played),
   AVG(rebounds::numeric  / games_played),
   AVG(assists::numeric   / games_played),
@@ -80,6 +89,8 @@ FROM qualified
 GROUP BY season_year
 ON CONFLICT (season_year) DO UPDATE SET
   scheduled_games = EXCLUDED.scheduled_games,
+  qualified_players       = EXCLUDED.qualified_players,
+  qualified_with_position = EXCLUDED.qualified_with_position,
   avg_points     = EXCLUDED.avg_points,
   avg_rebounds   = EXCLUDED.avg_rebounds,
   avg_assists    = EXCLUDED.avg_assists,
@@ -126,15 +137,17 @@ export async function computeLeague(
   )
   const years = yearsRes.rows.map((r) => r.season_year)
 
-  // Real slate per season from a team schedule (team 6 = LA Sparks, active since 1997).
-  // Completed games only, every season — for a finished season that's the full slate; for
-  // the in-progress current season it's games elapsed so far, so the small-sample gate and
-  // the qualified-player filter both scale to how much of the season has actually happened
-  // (a regular isn't flagged small-sample just because the season is young). See wnba-arc
-  // deviation.ts (isSmallSample) — the two share SMALL_SAMPLE_FRACTION.
+  // Real slate per season from a team schedule (team 6 = LA Sparks, active since 1997). For a
+  // finished season, every regular-season game that was actually played; for the in-progress
+  // current season, the games completed so far, so the small-sample gate and the qualified-
+  // player filter both scale to how much of the season has actually happened (a regular isn't
+  // flagged small-sample just because the season is young). The rule — and why "completed"
+  // alone is wrong before 2002 — is countRegularSeasonGames in src/espn/schedule.ts. See
+  // wnba-arc deviation.ts (isSmallSample) — the two share SMALL_SAMPLE_FRACTION.
+  const current = currentSeason()
   const slates: Record<number, number> = {}
   for (const y of years) {
-    const n = await fetchScheduledGames('6', y, true)
+    const n = await fetchScheduledGames('6', y, y === current)
     if (n) slates[y] = n
   }
 

@@ -21,7 +21,7 @@ try {
 }
 
 import { Pool } from 'pg'
-import { discoverPlayerIds, fetchBio, fetchSeasons } from '../src/espn/client'
+import { discoverCurrentPlayerIds, fetchBio, fetchSeasons } from '../src/espn/client'
 import { ingestPlayer } from '../src/db/ingest'
 import { backfillRoles } from '../src/db/backfillRoles'
 import { computeLeague } from '../src/db/computeLeague'
@@ -53,7 +53,7 @@ async function main(): Promise<void> {
     // can tell afterward what this run changed (name/position/team).
     const before = await snapshotIdentities(pool, FEATURED_ESPN_IDS)
 
-    let ids = await discoverPlayerIds(currentYear)
+    let ids = await discoverCurrentPlayerIds(currentYear)
     if (limitArg) ids = ids.slice(0, limitArg)
     console.log(
       `discovered ${ids.length} current players; refreshing ${currentYear} rows ` +

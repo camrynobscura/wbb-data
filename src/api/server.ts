@@ -65,7 +65,14 @@ app.get('/', (req, res) => {
 })
 
 app.get('/players', async (req, res) => {
-  const players = await getPlayers(pool)
+  // ?scope=current (default: the rolling window the app has always shown) | all (every player on
+  // record, retired included). Anything else is the client's mistake, not a silent default.
+  const scope = req.query.scope ?? 'current'
+  if (scope !== 'current' && scope !== 'all') {
+    res.status(400).json({ error: "scope must be 'current' or 'all'" })
+    return
+  }
+  const players = await getPlayers(pool, scope)
   res.json(players)
 })
 

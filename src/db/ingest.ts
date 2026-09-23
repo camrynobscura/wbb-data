@@ -43,12 +43,15 @@ export async function ingestPlayer(
     }
   }
 
-  // Set the current/last team from the bio by LOOKUP only — never create a team
-  // from it (see getTeamIdByEspn). ESPN sometimes points a departed player's bio at
-  // her NATIONAL team; that resolves to nothing, so current_team_id stays null (as
-  // upsertPlayer(..., null) already set it). Done after the season loop so the
-  // player's own team already exists on a from-scratch build.
-  if (bio.currentTeamEspnId) {
+  // Set the current team from the bio by LOOKUP only — never create a team from it
+  // (see getTeamIdByEspn) — and only for an ACTIVE player: a retired bio's team ref is
+  // unreliable (Deanna Nolan's names a franchise she never played for), and a retired
+  // player has no current team anyway, so hers stays null. For an active player, ESPN
+  // sometimes points a departed player's bio at her NATIONAL team; that resolves to
+  // nothing, so current_team_id stays null (as upsertPlayer(..., null) already set it).
+  // Done after the season loop so the player's own team already exists on a
+  // from-scratch build.
+  if (bio.active && bio.currentTeamEspnId) {
     const currentTeamId = await getTeamIdByEspn(pool, bio.currentTeamEspnId)
     if (currentTeamId) {
       await pool.query(

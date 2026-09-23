@@ -24,6 +24,11 @@ const DELETE_SQL = `DELETE FROM position_seasons WHERE ($1::int IS NULL OR seaso
 // re-fetches a team schedule from ESPN. The math mirrors computeLeague.ts exactly (rate stats
 // from summed totals, not a mean of per-player rates) so a position average is directly
 // comparable to the league average on the same stat.
+// The coverage gate (migration 005): a season gets position buckets only if EVERY qualified
+// player that year has a position (league_seasons.qualified_with_position = qualified_players).
+// ESPN has none for most pre-2012 players; a bucket built from whoever happens to be placed
+// would be biased in a way the >= $3 gate can't see. NULL counts (a row not yet recomputed
+// since the migration) compare as not-equal, so they gate off rather than through.
 const INSERT_SQL = `
 INSERT INTO position_seasons (
   season_year, position, qualified_players,
@@ -72,6 +77,7 @@ WHERE ps.season_type = 2
   AND p.position IS NOT NULL
   AND ($1::int IS NULL OR ps.season_year = $1::int)
   AND ps.games_played >= $2::numeric * ls.scheduled_games
+  AND ls.qualified_with_position = ls.qualified_players
 GROUP BY ps.season_year, p.position
 HAVING COUNT(*) >= $3::int
 `
