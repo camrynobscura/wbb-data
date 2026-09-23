@@ -69,6 +69,12 @@ export interface SeasonPlayed {
   // for the roster window (last 3 seasons), only "still-active players" for older years (TRIAGE).
   pool: number | null
   rank: { pts: number; reb: number; ast: number; stl: number; blk: number } | null
+  // The same two, among the player's OWN POSITION that year — the crowd the /positions averages
+  // describe, gated the same way (>= 8 qualified players, computePositions.MIN_QUALIFIED): where
+  // /positions has no (year, position) row, both are null. Also null when the player has no position.
+  // The position is the player's current one (players.position), as for the position averages.
+  posPool: number | null
+  posRank: { pts: number; reb: number; ast: number; stl: number; blk: number } | null
 
   // ── advanced / role (for a future advanced section) — season RATES ──
   tsPct: number | null

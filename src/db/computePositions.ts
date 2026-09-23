@@ -6,7 +6,9 @@ import { pctlLadder } from './spread'
 // two- or three-player mean. Measured against the real qualified-per-position histogram
 // (2026-08-24): everything from 2015 on clears 8, only thin pre-2015 buckets fall below.
 // Keep in sync with the frontend's missing-baseline copy (wnba-arc deviation.ts / captions).
-const MIN_QUALIFIED = 8
+/** A (year, position) bucket needs this many qualified players to exist at all — shared with the
+    per-position rank on /players/:id, so a rank never appears for a bucket the averages omit. */
+export const MIN_QUALIFIED = 8
 
 // The "played enough to count" bar that picks which player-seasons feed the averages. MUST
 // stay equal to computeLeague.ts's SMALL_SAMPLE_FRACTION (and the frontend's) — one concept,

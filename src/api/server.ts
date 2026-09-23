@@ -21,6 +21,12 @@ const pool = new Pool({
   connectionTimeoutMillis: 10_000,
   statement_timeout: 10_000, // Postgres cancels any query running longer than 10s
 })
+// pg-pool re-emits an IDLE client's socket error on the pool, and an 'error' event with no
+// listener throws — which took the whole process down on 2026-09-21 (`read ETIMEDOUT` on an idle
+// Supabase connection after ~35 min up). The pool drops the dead client on its own; log and go on.
+pool.on('error', (err) => {
+  console.error('[pg pool] idle client error (client discarded):', err.message)
+})
 
 const app = express()
 const PORT = Number(process.env.PORT) || 3001
