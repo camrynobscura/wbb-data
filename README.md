@@ -10,8 +10,9 @@ on Render's free tier over Postgres on Supabase, kept warm by a 5-minute uptime 
 
 ## What it does
 
-- **Ingests** player season histories from ESPN's stats data — identity, per-season box-score
-  totals, minutes, and team history.
+- **Ingests** every player's season history from ESPN's stats data — identity, per-season box-score
+  totals, minutes, and team history — for every player who has appeared since the league's first
+  season (1997), so a season is always compared against its whole league.
 - **Derives** efficiency and role stats from the raw box score: true shooting %, effective
   FG%, turnover %, 3-point-attempt rate, and free-throw rate (as Postgres *generated columns*,
   so they can't drift from their inputs), plus usage % and assist % computed from team totals.
@@ -50,9 +51,11 @@ Read-only, JSON:
 
 | Endpoint | Returns |
 | --- | --- |
-| `GET /players` | the player list (id, name, team, position) |
-| `GET /players/:id` | one player + full regular-season history |
-| `GET /league` | per-year league averages + schedule lengths |
+| `GET /players` | the player list (id, name, team, position, career span) — `?scope=current` (default: anyone with a season in the last 3 years) or `?scope=all` (everyone since 1997) |
+| `GET /players/:id` | one player + full regular-season history, with each season's league and position rank |
+| `GET /league` | per-year league averages, spread and schedule lengths |
+| `GET /positions` | per-year, per-position averages (where every qualified player that year has a known position) |
+| `GET /meta` | when the data was last refreshed |
 
 ## Stack
 
@@ -69,11 +72,12 @@ Requires Node 20+ and a Postgres database.
 npm install
 cp .env.example .env                 # set DATABASE_URL to your Postgres connection string
 
-npm run migrate                      # create / upgrade the schema (migrations/)
-npx tsx scripts/scrape.ts            # discover + ingest players and seasons from ESPN
-npx tsx scripts/seed-team-eras.ts    # era-accurate team names
-npx tsx scripts/backfill-roles.ts    # 2nd pass: minutes + usage% / assist%
-npx tsx scripts/compute-league.ts    # per-year league averages
+npm run migrate                        # create / upgrade the schema (migrations/)
+npx tsx scripts/scrape.ts --all        # discover + ingest every player since 1997 (no flag: the last 3 seasons)
+npx tsx scripts/backfill-roles.ts      # 2nd pass: minutes + usage% / assist% (--missing-only after adding players)
+npx tsx scripts/seed-team-eras.ts      # era-accurate team names
+npx tsx scripts/compute-league.ts      # per-year league averages
+npx tsx scripts/compute-positions.ts   # per-year, per-position averages
 
 npm run serve                        # read API on http://localhost:3001
 ```
@@ -90,6 +94,9 @@ npm run serve:watch
 
 Player stats come from ESPN's public stats endpoints. Efficiency stats are computed from
 box-score totals rather than trusting precomputed values, so they stay internally consistent.
+ESPN has no position on record for most players from before 2012, so per-position averages
+and ranks exist only for seasons where every qualified player is placed (2012 on); league
+averages and ranks cover every season.
 A few stats are intentionally left out because they can't be sourced reliably: rebound
 percentages need opponent data ESPN doesn't publish, and all-in-one impact metrics (PER, Win
 Shares, BPM, VORP) can't be derived from a box score. Scraped data is treated as a runtime

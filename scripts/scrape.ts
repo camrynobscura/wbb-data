@@ -23,10 +23,11 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { Pool } from 'pg'
 import {
-  discoverAllPlayerIds,
-  discoverCurrentPlayerIds,
+  discoverAllAppearances,
+  discoverCurrentAppearances,
   fetchBio,
   fetchSeasons,
+  recoverSeasons,
 } from '../src/espn/client'
 import { ingestPlayer } from '../src/db/ingest'
 import { startScrapeRun, finishScrapeRun } from '../src/db/scrapeRuns'
@@ -68,9 +69,18 @@ async function main(): Promise<void> {
   const runId = await startScrapeRun(pool)
 
   let done = 0
+  let recoveredSeasons = 0
   const failedIds: string[] = []
+  const noSeasons: string[] = []
 
   try {
+    // Discovery gives the universe AND each player's appearances (which seasons, how many
+    // games) — the record the fallback checks /stats against. A retry from a file still
+    // discovers, for the appearances; 60 quick list fetches.
+    const appearances =
+      args.all || args.idsFile
+        ? await discoverAllAppearances(currentYear)
+        : await discoverCurrentAppearances(currentYear)
     let ids: string[]
     if (args.idsFile) {
       ids = readFileSync(args.idsFile, 'utf8')
@@ -79,9 +89,7 @@ async function main(): Promise<void> {
         .filter(Boolean)
       console.log(`retrying ${ids.length} ids from ${args.idsFile}`)
     } else {
-      ids = args.all
-        ? await discoverAllPlayerIds(currentYear)
-        : await discoverCurrentPlayerIds(currentYear)
+      ids = [...appearances.keys()]
       const span = args.all
         ? `every season since ${FIRST_WNBA_SEASON}`
         : `the last ${ROSTER_WINDOW_YEARS} seasons`
@@ -92,17 +100,28 @@ async function main(): Promise<void> {
 
     await mapWithConcurrency(ids, CONCURRENCY, async (id) => {
       try {
-        const [bio, seasons] = await Promise.all([
+        const [bio, fromStats] = await Promise.all([
           fetchBio(id),
           fetchSeasons(id),
         ])
-        await ingestPlayer(pool, bio, seasons, currentYear)
-        done++
+        // Seasons the lists say she played but /stats didn't return (see fetchSeasonFromCore).
+        const recovered = await recoverSeasons(id, fromStats, appearances.get(id) ?? [])
+        recoveredSeasons += recovered.length
+        const seasons = [...fromStats, ...recovered]
+        if (seasons.length === 0) {
+          // No stats rows at all — ESPN has no career page for her, or only averages with
+          // no totals. Nothing the app could show, so she isn't stored (D6: played = a row
+          // exists). Reported, not counted as a failure.
+          noSeasons.push(id)
+        } else {
+          await ingestPlayer(pool, bio, seasons, currentYear)
+          done++
+        }
       } catch (err) {
         failedIds.push(id)
         console.error(`  player ${id} failed: ${String(err)}`)
       }
-      const processed = done + failedIds.length
+      const processed = done + failedIds.length + noSeasons.length
       if (processed % 25 === 0) {
         console.log(`  ${processed}/${ids.length} (${failedIds.length} failed)`)
       }
@@ -117,8 +136,14 @@ async function main(): Promise<void> {
       console.error(failureNote)
     }
 
+    if (noSeasons.length > 0) {
+      console.log(`skipped ${noSeasons.length} with no stats on ESPN: ${noSeasons.join(', ')}`)
+    }
+    console.log(`recovered ${recoveredSeasons} season(s) the career endpoint lacked`)
     await finishScrapeRun(pool, runId, 'success', done, failureNote)
-    console.log(`✅ scrape complete: ${done} ingested, ${failedIds.length} failed`)
+    console.log(
+      `✅ scrape complete: ${done} ingested, ${noSeasons.length} skipped (no stats), ${failedIds.length} failed`,
+    )
   } catch (err) {
     await finishScrapeRun(pool, runId, 'error', done, String(err))
     throw err

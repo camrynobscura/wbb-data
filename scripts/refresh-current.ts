@@ -21,7 +21,12 @@ try {
 }
 
 import { Pool } from 'pg'
-import { discoverCurrentPlayerIds, fetchBio, fetchSeasons } from '../src/espn/client'
+import {
+  discoverCurrentAppearances,
+  fetchBio,
+  fetchSeasons,
+  recoverSeasons,
+} from '../src/espn/client'
 import { ingestPlayer } from '../src/db/ingest'
 import { backfillRoles } from '../src/db/backfillRoles'
 import { computeLeague } from '../src/db/computeLeague'
@@ -47,13 +52,15 @@ async function main(): Promise<void> {
 
   let done = 0
   let failed = 0
+  let skipped = 0
 
   try {
     // Snapshot the featured players' identity BEFORE ingest overwrites it, so we
     // can tell afterward what this run changed (name/position/team).
     const before = await snapshotIdentities(pool, FEATURED_ESPN_IDS)
 
-    let ids = await discoverCurrentPlayerIds(currentYear)
+    const appearances = await discoverCurrentAppearances(currentYear)
+    let ids = [...appearances.keys()]
     if (limitArg) ids = ids.slice(0, limitArg)
     console.log(
       `discovered ${ids.length} current players; refreshing ${currentYear} rows ` +
@@ -62,18 +69,29 @@ async function main(): Promise<void> {
 
     await mapWithConcurrency(ids, CONCURRENCY, async (id) => {
       try {
-        const [bio, seasons] = await Promise.all([fetchBio(id), fetchSeasons(id)])
+        const [bio, fromStats] = await Promise.all([fetchBio(id), fetchSeasons(id)])
+        // A current-year appearance /stats doesn't return yet (an all-zero cameo — see
+        // fetchSeasonFromCore) is recovered from the core endpoint; only this year's, since
+        // only this year's rows are written.
+        const thisYear = (appearances.get(id) ?? []).filter((a) => a.year === currentYear)
+        const seasons = [...fromStats, ...(await recoverSeasons(id, fromStats, thisYear))]
         // Only the current season changes; ingest just that year's row(s). The
         // player bio is always upserted (name/team/position kept fresh) even when
         // there's no current-year row yet — that's what the change notifier reads.
-        const currentSeasons = seasons.filter((s) => s.year === currentYear)
-        await ingestPlayer(pool, bio, currentSeasons, currentYear)
-        done++
+        if (seasons.length === 0) {
+          // No stats rows at all (no ESPN career page, or averages with no totals): nothing
+          // the app could show, so she isn't stored — the same rule as scrape.ts.
+          skipped++
+        } else {
+          const currentSeasons = seasons.filter((s) => s.year === currentYear)
+          await ingestPlayer(pool, bio, currentSeasons, currentYear)
+          done++
+        }
       } catch (err) {
         failed++
         console.error(`  player ${id} failed: ${String(err)}`)
       }
-      const processed = done + failed
+      const processed = done + failed + skipped
       if (processed % 25 === 0) {
         console.log(`  ${processed}/${ids.length} (${failed} failed)`)
       }
@@ -131,7 +149,7 @@ async function main(): Promise<void> {
       done,
       failed ? `${failed} players failed` : undefined,
     )
-    console.log(`✅ refresh complete: ${done} players, ${failed} failed`)
+    console.log(`✅ refresh complete: ${done} players, ${skipped} skipped (no stats), ${failed} failed`)
   } catch (err) {
     await finishScrapeRun(pool, runId, 'error', done, String(err))
     throw err

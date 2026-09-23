@@ -28,8 +28,16 @@ try {
 import { Pool } from 'pg'
 import { fetchTeamName } from '../src/espn/client'
 
-/** Era name → the code it was actually known by, where ESPN's differs. Everything else is ESPN's own. */
+/** ESPN's name for a (team, year) → the era's real name, where ESPN's record is off. */
+const NAME_OVERRIDES: Record<string, string> = {
+  Charlotte: 'Charlotte Sting', // ESPN's 1997 record drops the nickname; the Sting played 1997–2006
+}
+
+/** Era name → the code it is known by, where ESPN's differs. Everything else is ESPN's own. */
 const ABBREVIATION_OVERRIDES: Record<string, string> = {
+  // The code this database has always served and the frontend keys team tints on
+  // (wnba-arc src/data/teams.ts); ESPN's current record says PHX. Keep the contract.
+  'Phoenix Mercury': 'PHO',
   'Detroit Shock': 'DET', // ESPN gives TUL — the franchise's later Tulsa code
   'Sacramento Monarchs': 'SAC', // ESPN gives SACRA for the franchise's first id (2793)
 }
@@ -72,8 +80,9 @@ async function main(): Promise<void> {
     for (const year of years) {
       const gap = previousYear !== null && year !== previousYear + 1
       previousYear = year
-      const named = await fetchTeamName(team.espn_id, year)
-      if (!named) continue
+      const fetched = await fetchTeamName(team.espn_id, year)
+      if (!fetched) continue
+      const named = { ...fetched, name: NAME_OVERRIDES[fetched.name] ?? fetched.name }
       const last = eras[eras.length - 1]
       if (last && last.name === named.name && !gap) {
         last.end_year = year

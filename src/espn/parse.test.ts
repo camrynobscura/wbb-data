@@ -5,6 +5,9 @@ import {
   parseMisc,
   groupSeasons,
   parseBio,
+  parseCoreSeasonBox,
+  missingAppearances,
+  isAllStarTeam,
   extractRawRows,
 } from './parse'
 import type { BoxScore, MiscStats, RawSeasonRow } from './parse'
@@ -167,6 +170,81 @@ describe('groupSeasons', () => {
     expect(season.teamId).toBe(11)
     expect(season.box.points).toBe(600) // real team row, not the inflated 613
     expect(season.stints).toEqual([])
+  })
+
+  it('sums the stints when a traded year has no TOTAL row (ESPN omits it sometimes)', () => {
+    // Alisia Jenkins 2020: Indiana (1 game) + Phoenix (2 games), no combined row.
+    const rows: RawSeasonRow[] = [
+      { year: 2020, teamId: 5, gamesPlayed: 1, box: box(4), misc: misc() },
+      { year: 2020, teamId: 11, gamesPlayed: 2, box: box(6), misc: misc() },
+    ]
+    const result = groupSeasons(rows, 2)
+
+    expect(result).toHaveLength(1)
+    const season = result[0]!
+    expect(season.isTotalRow).toBe(true)
+    expect(season.teamId).toBeNull()
+    expect(season.gamesPlayed).toBe(3)
+    expect(season.box.points).toBe(10) // 4 + 6: the total is the sum of the stints
+    expect(season.stints.map((s) => s.teamId)).toEqual([5, 11])
+  })
+})
+
+describe('parseCoreSeasonBox', () => {
+  // Rebekkah Brunson 2007 (Sacramento), as the core per-season endpoint returns it — a season
+  // the career /stats endpoint doesn't have at all.
+  const brunson2007 = {
+    gamesPlayed: 33, points: 378, fieldGoalsMade: 141, fieldGoalsAttempted: 298,
+    threePointFieldGoalsMade: 0, threePointFieldGoalsAttempted: 4, freeThrowsMade: 96,
+    freeThrowsAttempted: 140, offensiveRebounds: 130, defensiveRebounds: 165, assists: 24,
+    steals: 44, blocks: 31, turnovers: 58, fouls: 78, minutes: 932, doubleDouble: 10,
+  }
+
+  it('maps the flat core map to the box, defaulting absent misc counts to zero', () => {
+    const season = parseCoreSeasonBox(brunson2007)!
+    expect(season.gamesPlayed).toBe(33)
+    expect(season.box.points).toBe(378)
+    expect(season.box.fgAtt).toBe(298)
+    expect(season.box.oreb + season.box.dreb).toBe(295)
+    expect(season.misc.doubleDoubles).toBe(10)
+    expect(season.misc.ejections).toBe(0) // absent → zero, as for /stats misc rows
+  })
+
+  it('returns null with no games, and fails loudly on a missing box key', () => {
+    expect(parseCoreSeasonBox({ gamesPlayed: 0, points: 0 })).toBeNull()
+    expect(parseCoreSeasonBox({})).toBeNull()
+    const { fouls: _dropped, ...noFouls } = brunson2007
+    expect(() => parseCoreSeasonBox(noFouls)).toThrow('missing core stat "fouls"')
+  })
+})
+
+describe('isAllStarTeam', () => {
+  it('flags All-Star sides by flag, slug, code or name — and never a franchise', () => {
+    expect(isAllStarTeam({ isAllStar: true, displayName: 'TEAM SPOON' })).toBe(true)
+    expect(isAllStarTeam({ slug: 'west' })).toBe(true) // /stats row, old All-Star game
+    expect(isAllStarTeam({ abbreviation: 'WEST', name: 'WEST' })).toBe(true) // team 99 on the core endpoint
+    expect(isAllStarTeam({ slug: 'all-stars' })).toBe(true)
+    expect(isAllStarTeam({ displayName: 'Sacramento Monarchs', abbreviation: 'SAC', slug: 'sacramento-monarchs', isAllStar: false })).toBe(false)
+    expect(isAllStarTeam({ displayName: 'Seattle Storm', abbreviation: 'SEA' })).toBe(false)
+  })
+})
+
+describe('missingAppearances', () => {
+  it('lists appearances with games that /stats did not return, ignoring 0-game listings', () => {
+    const seasons = [
+      { year: 2006, seasonType: 2 },
+      { year: 2010, seasonType: 2 },
+    ]
+    const appearances = [
+      { year: 2006, seasonType: 2, gamesPlayed: 34 }, // covered
+      { year: 2007, seasonType: 2, gamesPlayed: 33 }, // the Monarchs gap
+      { year: 2007, seasonType: 3, gamesPlayed: 4 }, // and its playoff run
+      { year: 2008, seasonType: 3, gamesPlayed: 0 }, // listed, never played → nothing to store
+    ]
+    expect(missingAppearances(seasons, appearances)).toEqual([
+      { year: 2007, seasonType: 2, gamesPlayed: 33 },
+      { year: 2007, seasonType: 3, gamesPlayed: 4 },
+    ])
   })
 })
 

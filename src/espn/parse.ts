@@ -139,6 +139,78 @@ export function parseGamesPlayed(names: string[], stats: string[]): number {
   return Number(readStat(zipStats(names, stats), 'gamesPlayed'))
 }
 
+// ─── Core per-season statistics (the fallback source) ────────────────────────
+
+/**
+ * The career `/stats` endpoint sometimes has no row for a season the player did play:
+ * every Sacramento Monarchs season from 2007–2009 (the franchise's second team id, 13, is
+ * missing from it entirely), and any season whose totals are all zero — a 1-game cameo —
+ * because ESPN omits an all-zero totals row the way it omits all-zero misc rows. The core
+ * per-season endpoint (`seasons/{y}/types/{t}/athletes/{id}/statistics`) still has the exact
+ * box for them, as one flat name→value map. This turns that map into the shapes a /stats row
+ * becomes. Null when the map holds no games. The box keys must all be present (they are —
+ * verified on Brunson 2007); the misc counts default to zero like their /stats rows do.
+ */
+export function parseCoreSeasonBox(
+  flat: Record<string, number | undefined>,
+): { gamesPlayed: number; box: BoxScore; misc: MiscStats } | null {
+  const gamesPlayed = flat.gamesPlayed
+  if (!gamesPlayed) return null
+  const need = (key: string): number => {
+    const value = flat[key]
+    if (value === undefined) throw new Error(`missing core stat "${key}"`)
+    return value
+  }
+  const misc = (key: string): number => flat[key] ?? 0
+  return {
+    gamesPlayed,
+    box: {
+      points: need('points'),
+      fgMade: need('fieldGoalsMade'),
+      fgAtt: need('fieldGoalsAttempted'),
+      fg3Made: need('threePointFieldGoalsMade'),
+      fg3Att: need('threePointFieldGoalsAttempted'),
+      ftMade: need('freeThrowsMade'),
+      ftAtt: need('freeThrowsAttempted'),
+      oreb: need('offensiveRebounds'),
+      dreb: need('defensiveRebounds'),
+      assists: need('assists'),
+      steals: need('steals'),
+      blocks: need('blocks'),
+      turnovers: need('turnovers'),
+      fouls: need('fouls'),
+    },
+    misc: {
+      doubleDoubles: misc('doubleDouble'),
+      tripleDoubles: misc('tripleDouble'),
+      technicalFouls: misc('technicalFouls'),
+      flagrantFouls: misc('flagrantFouls'),
+      disqualifications: misc('disqualifications'),
+      ejections: misc('ejections'),
+    },
+  }
+}
+
+/** One (season, type) a discovery list says the player appeared in, with her games played. */
+export interface Appearance {
+  year: number
+  seasonType: number
+  gamesPlayed: number
+}
+
+/**
+ * The appearances with games played that `/stats` returned no season for — what the fallback
+ * has to recover. The discovery lists are the record of who played; /stats is only the first
+ * place we look for the box.
+ */
+export function missingAppearances(
+  seasons: { year: number; seasonType: number }[],
+  appearances: Appearance[],
+): Appearance[] {
+  const have = new Set(seasons.map((s) => `${s.year}|${s.seasonType}`))
+  return appearances.filter((a) => a.gamesPlayed > 0 && !have.has(`${a.year}|${a.seasonType}`))
+}
+
 // ─── Bio (core athlete endpoint) ─────────────────────────────────────────────
 
 /**
@@ -265,6 +337,27 @@ interface EspnStatsResponse {
   teams?: Record<string, { isAllStar?: boolean }>
 }
 
+/**
+ * Is this an All-Star / exhibition side rather than a franchise? The dict flag catches recent
+ * ones (2026's "TEAM SPOON" is flagged); older All-Star teams lack it — team 99 "WEST" — so
+ * also match the slug, code or name. Used on /stats rows and on event-log teams alike.
+ */
+export function isAllStarTeam(team: {
+  isAllStar?: boolean
+  slug?: string
+  abbreviation?: string
+  name?: string
+  displayName?: string
+}): boolean {
+  if (team.isAllStar === true) return true
+  const labels = [team.slug, team.abbreviation, team.name, team.displayName].filter(
+    (s): s is string => typeof s === 'string',
+  )
+  return labels.some(
+    (s) => /^(west|east)$/i.test(s) || /all[- ]?stars?/i.test(s) || /^team\s/i.test(s),
+  )
+}
+
 /** Misc counts default to zero — ESPN omits the row (or whole category) when
  *  every count is zero, so "absent" means "all zero", not "unknown". */
 const ZERO_MISC: MiscStats = {
@@ -314,15 +407,10 @@ export function extractRawRows(response: EspnStatsResponse): RawSeasonRow[] {
 
   const rows: RawSeasonRow[] = []
   for (const tRow of totals.statistics) {
-    // Skip All-Star / exhibition rows so they don't pollute real seasons. The
-    // dict flag catches recent ones; older All-Star teams are absent from the
-    // dict, so also match the slug (west / east / all-stars).
+    // Skip All-Star / exhibition rows so they don't pollute real seasons (see isAllStarTeam:
+    // the dict flag for recent ones, the slug for older teams absent from the dict).
     const slug = tRow.teamSlug ?? ''
-    const isAllStar =
-      teams[slug]?.isAllStar === true ||
-      /^(west|east)$/i.test(slug) ||
-      /all[- ]?stars?/i.test(slug)
-    if (isAllStar) {
+    if (isAllStarTeam({ ...teams[slug], slug })) {
       continue
     }
 
@@ -350,6 +438,17 @@ export function extractRawRows(response: EspnStatsResponse): RawSeasonRow[] {
     })
   }
   return rows
+}
+
+/** Field-by-field sum of same-shaped numeric records (a BoxScore or MiscStats). */
+function sumFields<T extends object>(first: T, rest: T[]): T {
+  const out: Record<string, number> = { ...(first as Record<string, number>) }
+  for (const item of rest) {
+    for (const [key, value] of Object.entries(item as Record<string, number>)) {
+      out[key] = (out[key] ?? 0) + value
+    }
+  }
+  return out as T
 }
 
 /**
@@ -384,6 +483,28 @@ export function groupSeasons(
         gamesPlayed: totalRow.gamesPlayed,
         box: totalRow.box,
         misc: totalRow.misc,
+        stints: teamRows.map((r) => ({
+          teamId: r.teamId as number,
+          gamesPlayed: r.gamesPlayed,
+          box: r.box,
+        })),
+      })
+      continue
+    }
+
+    // Two or more real teams but NO total row — ESPN omits it for some traded years (Alisia
+    // Jenkins 2020: Indiana 1 game + Phoenix 2). Box counts are additive by definition, so the
+    // sum of the stints IS the season total, not an estimate; it becomes the canonical row.
+    if (teamRows.length >= 2) {
+      const [first, ...rest] = teamRows as [RawSeasonRow, ...RawSeasonRow[]]
+      seasons.push({
+        year,
+        seasonType,
+        teamId: null,
+        isTotalRow: true,
+        gamesPlayed: teamRows.reduce((n, r) => n + r.gamesPlayed, 0),
+        box: sumFields(first.box, rest.map((r) => r.box)),
+        misc: sumFields(first.misc, rest.map((r) => r.misc)),
         stints: teamRows.map((r) => ({
           teamId: r.teamId as number,
           gamesPlayed: r.gamesPlayed,

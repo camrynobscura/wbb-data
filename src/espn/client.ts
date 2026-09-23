@@ -2,6 +2,10 @@ import {
   parseBio,
   extractRawRows,
   groupSeasons,
+  parseCoreSeasonBox,
+  missingAppearances,
+  isAllStarTeam,
+  type Appearance,
   type PlayerBio,
   type SeasonRecord,
 } from './parse'
@@ -14,27 +18,32 @@ const USER_AGENT = 'wnba-data/0.1 (personal research project)'
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 /**
- * Fetch JSON politely: identify ourselves, and retry transient failures
- * (429 / 5xx / network) with a growing backoff. A 4xx that isn't 429 is a real
- * error we don't retry.
+ * Fetch JSON politely: identify ourselves, and retry transient failures (429 / 5xx /
+ * network / an unparseable body) with a growing backoff. Any other 4xx is a real answer,
+ * not something to retry — and with `notFoundIsNull` a 404 comes back as null: ESPN saying
+ * "nothing here" (a 2000s reserve with no career stats page), which is data, not an error.
+ * (Before 2026-09-23 a 4xx fell into the retry loop: three identical 404s per player.)
  */
-async function fetchJson<T>(url: string): Promise<T> {
+async function request<T>(url: string, notFoundIsNull: boolean): Promise<T | null> {
   const maxAttempts = 3
   let lastError: unknown
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    let res: Response | null = null
     try {
-      const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT } })
+      res = await fetch(url, { headers: { 'User-Agent': USER_AGENT } })
       if (res.ok) {
         return (await res.json()) as T
       }
-      if (res.status === 429 || res.status >= 500) {
-        lastError = new Error(`${res.status} ${res.statusText}`)
-      } else {
+    } catch (err) {
+      lastError = err // network error, or a 200 whose body wouldn't parse — retry
+    }
+    if (res && !res.ok) {
+      if (res.status === 404 && notFoundIsNull) return null
+      if (res.status !== 429 && res.status < 500) {
         throw new Error(`${url} → ${res.status} ${res.statusText}`)
       }
-    } catch (err) {
-      lastError = err
+      lastError = new Error(`${res.status} ${res.statusText}`)
     }
     if (attempt < maxAttempts) {
       await sleep(attempt * 1000) // 1s, then 2s
@@ -43,6 +52,9 @@ async function fetchJson<T>(url: string): Promise<T> {
 
   throw new Error(`${url} failed after ${maxAttempts} attempts: ${String(lastError)}`)
 }
+
+const fetchJson = <T>(url: string): Promise<T> => request<T>(url, false) as Promise<T>
+const fetchJsonOrNotFound = <T>(url: string): Promise<T | null> => request<T>(url, true)
 
 // ─── Discovery (Pass A) ───────────────────────────────────────────────────────
 
@@ -53,36 +65,57 @@ const BYATHLETE =
 const SEASON_TYPES = [2, 3]
 
 interface ByAthleteResponse {
-  athletes?: { athlete: { id: string } }[]
+  categories?: { name: string; names: string[] }[]
+  athletes?: {
+    athlete: { id: string }
+    categories?: { name: string; values: (number | null)[] }[]
+  }[]
 }
 
+/** Each athlete's appearances, keyed by ESPN id. */
+export type Appearances = Map<string, Appearance[]>
+
 /**
- * Every athlete who appeared in any (season, type) from `fromYear` through `toYear`,
- * deduplicated. One list per (year, type): `isqualified=false` keeps the low-minute players
+ * Every (season, type) each athlete appeared in from `fromYear` through `toYear`, with her
+ * games played. One list per (year, type): `isqualified=false` keeps the low-minute players
  * the default would drop, and `limit=1000` is the whole list in one page (the largest season,
- * 2026, has 237). Works for every season back to 1997 (verified 2026-09-23).
+ * 2026, has 237). Works for every season back to 1997 (verified 2026-09-23). The lists are the
+ * record of who played; the per-player /stats endpoint is only the first place the box is
+ * looked for (see recoverSeasons).
  */
-export async function discoverPlayerIds(fromYear: number, toYear: number): Promise<string[]> {
-  const ids = new Set<string>()
+export async function discoverAppearances(fromYear: number, toYear: number): Promise<Appearances> {
+  const appearances: Appearances = new Map()
   for (let year = fromYear; year <= toYear; year++) {
     for (const seasonType of SEASON_TYPES) {
       const url = `${BYATHLETE}?season=${year}&seasontype=${seasonType}&limit=1000&isqualified=false`
       const data = await fetchJson<ByAthleteResponse>(url)
+      // Games played sits in the `general` category, positionally under its `names`.
+      const gpIndex =
+        data.categories?.find((c) => c.name === 'general')?.names.indexOf('gamesPlayed') ?? -1
       for (const entry of data.athletes ?? []) {
-        ids.add(entry.athlete.id)
+        const values = entry.categories?.find((c) => c.name === 'general')?.values
+        const gamesPlayed = gpIndex >= 0 ? Number(values?.[gpIndex] ?? 0) : 0
+        const list = appearances.get(entry.athlete.id) ?? []
+        list.push({ year, seasonType, gamesPlayed })
+        appearances.set(entry.athlete.id, list)
       }
     }
   }
-  return [...ids]
+  return appearances
 }
 
 /** D1 · the rolling-window universe: everyone in the last ROSTER_WINDOW_YEARS seasons. */
-export const discoverCurrentPlayerIds = (currentYear: number): Promise<string[]> =>
-  discoverPlayerIds(windowStart(currentYear), currentYear)
+export const discoverCurrentAppearances = (currentYear: number): Promise<Appearances> =>
+  discoverAppearances(windowStart(currentYear), currentYear)
 
 /** The whole league: everyone who has played since the WNBA's first season. */
-export const discoverAllPlayerIds = (currentYear: number): Promise<string[]> =>
-  discoverPlayerIds(FIRST_WNBA_SEASON, currentYear)
+export const discoverAllAppearances = (currentYear: number): Promise<Appearances> =>
+  discoverAppearances(FIRST_WNBA_SEASON, currentYear)
+
+/** Just the ids, for a dry run. */
+export async function discoverPlayerIds(fromYear: number, toYear: number): Promise<string[]> {
+  return [...(await discoverAppearances(fromYear, toYear)).keys()]
+}
 
 // ─── Per-player fetch (Pass B) ────────────────────────────────────────────────
 
@@ -99,15 +132,21 @@ export async function fetchBio(id: string): Promise<PlayerBio> {
   return parseBio(athlete)
 }
 
-/** Fetch + parse one player's full career (regular season + playoffs). */
+/**
+ * Fetch + parse one player's full career (regular season + playoffs). A 404 on a season
+ * type is ESPN having no stats page for it — a few 2000s reserves (Charel Allen, Laura
+ * Harper, Whitney Boddie) have none at all — so that type contributes no seasons; the
+ * caller decides what a player with no seasons means.
+ */
 export async function fetchSeasons(id: string): Promise<SeasonRecord[]> {
+  type StatsResponse = Parameters<typeof extractRawRows>[0]
   const [reg, post] = await Promise.all([
-    fetchJson<Parameters<typeof extractRawRows>[0]>(statsUrl(id, 2)),
-    fetchJson<Parameters<typeof extractRawRows>[0]>(statsUrl(id, 3)),
+    fetchJsonOrNotFound<StatsResponse>(statsUrl(id, 2)),
+    fetchJsonOrNotFound<StatsResponse>(statsUrl(id, 3)),
   ])
   return [
-    ...groupSeasons(extractRawRows(reg), 2),
-    ...groupSeasons(extractRawRows(post), 3),
+    ...(reg ? groupSeasons(extractRawRows(reg), 2) : []),
+    ...(post ? groupSeasons(extractRawRows(post), 3) : []),
   ]
 }
 
@@ -208,6 +247,87 @@ export async function fetchTeamName(
   const name = data?.displayName ?? data?.name
   if (!data || !name || !data.abbreviation) return null
   return { name, abbreviation: data.abbreviation }
+}
+
+// ─── Seasons /stats doesn't have (the fallback) ───────────────────────────────
+
+interface EventLogResponse {
+  teams?: Record<string, { id: string }>
+}
+
+/** Is (team, year) a real franchise? An athlete's event log also lists the All-Star side she
+ *  played for (2026's flagged "TEAM SPOON", 2007's unflagged "WEST", id 99). Cached: only a
+ *  handful of distinct (team, year) pairs ever come up. */
+const realTeamCache = new Map<string, boolean>()
+async function isRealTeam(teamId: string, year: number): Promise<boolean> {
+  const key = `${year}|${teamId}`
+  if (!realTeamCache.has(key)) {
+    const data = await fetchJsonOrNull<Parameters<typeof isAllStarTeam>[0]>(
+      coreSeasonUrl(`${year}/teams/${teamId}`),
+    )
+    realTeamCache.set(key, data !== null && !isAllStarTeam(data))
+  }
+  return realTeamCache.get(key)!
+}
+
+/**
+ * One season the career /stats endpoint didn't return, rebuilt from the core per-season
+ * endpoint (the exact box — see parseCoreSeasonBox for which seasons this happens to) and
+ * the season's event log (the team she played for; /stats' team is not on the core response,
+ * and the season-scoped athlete record names her LAST team, not that year's). One real team →
+ * a normal single-team season. More than one → a traded season with no stint detail, stored
+ * as a TOTAL row (logged, so it can be looked at). Null when there's no box or no team.
+ */
+export async function fetchSeasonFromCore(
+  espnId: string,
+  year: number,
+  seasonType: number,
+): Promise<SeasonRecord | null> {
+  const stats = await fetchJsonOrNull<CoreStatsResponse>(
+    coreSeasonUrl(`${year}/types/${seasonType}/athletes/${espnId}/statistics`),
+  )
+  if (!stats) return null
+  const parsed = parseCoreSeasonBox(flattenCoreStats(stats))
+  if (!parsed) return null
+
+  const log = await fetchJsonOrNull<EventLogResponse>(
+    coreSeasonUrl(`${year}/athletes/${espnId}/eventlog?limit=1`),
+  )
+  const teamIds: string[] = []
+  for (const id of Object.keys(log?.teams ?? {})) {
+    if (await isRealTeam(id, year)) teamIds.push(id)
+  }
+  if (teamIds.length === 0) return null
+  if (teamIds.length > 1) {
+    console.warn(
+      `  ${espnId} ${year}/${seasonType}: recovered season spans teams ${teamIds.join(',')} — stored as a total without stints`,
+    )
+  }
+  return {
+    year,
+    seasonType,
+    teamId: teamIds.length === 1 ? Number(teamIds[0]) : null,
+    isTotalRow: teamIds.length !== 1,
+    ...parsed,
+    stints: [],
+  }
+}
+
+/**
+ * The seasons a player's appearances say she played that /stats didn't return, recovered
+ * from the core endpoint. Returns only the recovered records; the caller appends them.
+ */
+export async function recoverSeasons(
+  espnId: string,
+  fromStats: SeasonRecord[],
+  appearances: Appearance[],
+): Promise<SeasonRecord[]> {
+  const recovered: SeasonRecord[] = []
+  for (const a of missingAppearances(fromStats, appearances)) {
+    const season = await fetchSeasonFromCore(espnId, a.year, a.seasonType)
+    if (season) recovered.push(season)
+  }
+  return recovered
 }
 
 /** A player's exact total minutes for one season (null if unavailable). */
