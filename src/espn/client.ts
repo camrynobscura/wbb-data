@@ -9,7 +9,7 @@ import {
   type PlayerBio,
   type SeasonRecord,
 } from './parse'
-import { countRegularSeasonGames, type ScheduleEvent } from './schedule'
+import { countRegularSeasonGames, lastCompletedGameDate, type ScheduleEvent } from './schedule'
 import { FIRST_WNBA_SEASON, windowStart } from '../seasons'
 
 // Honest, non-browser User-Agent (no personal contact info sent to ESPN).
@@ -232,6 +232,24 @@ export async function fetchScheduledGames(
   )
   if (!data) return null
   return countRegularSeasonGames(data.events ?? [], inProgress) || null
+}
+
+/**
+ * "Stats through …": the latest completed regular-season game date across the given teams'
+ * schedules (each team's schedule has that team's off days, so one team isn't enough). Null when
+ * no schedule could be fetched or nothing has been completed. A failed team schedule is skipped,
+ * not fatal — this feeds a footer line, never the data.
+ */
+export async function fetchLastGameDate(teamIds: string[], year: number): Promise<string | null> {
+  let latest: string | null = null
+  for (const teamId of teamIds) {
+    const data = await fetchJsonOrNull<{ events?: ScheduleEvent[] }>(
+      `https://site.api.espn.com/apis/site/v2/sports/basketball/wnba/teams/${teamId}/schedule?season=${year}`,
+    )
+    const d = data ? lastCompletedGameDate(data.events ?? []) : null
+    if (d && (latest == null || d > latest)) latest = d
+  }
+  return latest
 }
 
 /** Era-accurate team name + abbreviation for a specific season (null if none). */

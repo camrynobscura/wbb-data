@@ -280,15 +280,26 @@ export async function getPlayer(pool: Pool, id: string): Promise<PlayerDetail | 
 }
 
 // ── data freshness ───────────────────────────────────────────────────────────
-/** GET /meta — finish time of the most recent successful scrape, or null if none. */
+/** GET /meta — finish time of the most recent successful scrape (or null), and "stats through":
+    the latest completed game date from the most recent successful run that recorded one (a run
+    whose schedule fetch failed, or a full historical scrape, leaves it null — fall through to the
+    last one that knew). The date column is cast to text so it arrives as "YYYY-MM-DD", not a
+    Date at local midnight. */
 export async function getMeta(pool: Pool): Promise<Meta> {
-  const { rows } = await pool.query<{ finished_at: Date | null }>(
-    `SELECT finished_at FROM scrape_runs
-      WHERE status = 'success' AND finished_at IS NOT NULL
-      ORDER BY finished_at DESC LIMIT 1`,
+  const { rows } = await pool.query<{ finished_at: Date | null; stats_through: string | null }>(
+    `SELECT
+       (SELECT finished_at FROM scrape_runs
+         WHERE status = 'success' AND finished_at IS NOT NULL
+         ORDER BY finished_at DESC LIMIT 1) AS finished_at,
+       (SELECT last_game_date::text FROM scrape_runs
+         WHERE status = 'success' AND last_game_date IS NOT NULL
+         ORDER BY finished_at DESC LIMIT 1) AS stats_through`,
   )
   const finishedAt = rows[0]?.finished_at ?? null
-  return { lastScrapedAt: finishedAt ? finishedAt.toISOString() : null }
+  return {
+    lastScrapedAt: finishedAt ? finishedAt.toISOString() : null,
+    statsThrough: rows[0]?.stats_through ?? null,
+  }
 }
 
 // ── deviation spread + percentile ladders (shared by league + position) ───────

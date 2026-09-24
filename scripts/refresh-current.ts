@@ -24,6 +24,7 @@ import { Pool } from 'pg'
 import {
   discoverCurrentAppearances,
   fetchBio,
+  fetchLastGameDate,
   fetchSeasons,
   recoverSeasons,
 } from '../src/espn/client'
@@ -119,6 +120,25 @@ async function main(): Promise<void> {
     const positionCount = await computePositions(pool, { year: currentYear })
     console.log(`recomputed position averages: ${positionCount} (year, position) row(s)`)
 
+    // "Stats through …" for the footer: the latest completed regular-season game across this
+    // season's teams' schedules. Non-fatal — a null here just makes /meta serve the last run's.
+    let lastGameDate: string | null = null
+    try {
+      const { rows: teamRows } = await pool.query<{ team_id: string }>(
+        `SELECT DISTINCT team_id::text AS team_id FROM player_seasons
+          WHERE season_year = $1 AND team_id IS NOT NULL
+         UNION
+         SELECT DISTINCT team_id::text FROM player_season_stints
+          WHERE season_year = $1 AND team_id IS NOT NULL`,
+        [currentYear],
+      )
+      const teamIds = teamRows.map((r) => r.team_id)
+      lastGameDate = await fetchLastGameDate(teamIds, currentYear)
+      console.log(`stats through ${lastGameDate ?? '(unknown)'} (${teamIds.length} team schedules)`)
+    } catch (dateErr) {
+      console.error(`last-game-date step failed (non-fatal): ${String(dateErr)}`)
+    }
+
     // Heads-up notification (must never fail the run — the data refresh is done).
     // Diff the featured players' identity and flag any un-named new teams; ping
     // Discord if there's anything to act on. No webhook configured → just log.
@@ -148,6 +168,7 @@ async function main(): Promise<void> {
       'success',
       done,
       failed ? `${failed} players failed` : undefined,
+      lastGameDate,
     )
     console.log(`✅ refresh complete: ${done} players, ${skipped} skipped (no stats), ${failed} failed`)
   } catch (err) {

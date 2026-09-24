@@ -106,12 +106,19 @@ export interface SeasonMissed {
 }
 
 /**
- * `GET /meta` — global data-freshness signal for the UI's "Data current as of …"
- * line. `lastScrapedAt` is the finish time of the most recent SUCCESSFUL scrape
- * run as an ISO 8601 UTC string, or null if no successful run has completed yet.
+ * `GET /meta` — global data-freshness signals.
+ * - `statsThrough`: "YYYY-MM-DD" (Eastern calendar date) of the latest COMPLETED regular-season
+ *   game the nightly refresh saw on ESPN's schedules — the footer's "Stats through Sep 23, 2026".
+ *   In-season it is yesterday's games; in the playoffs and the off-season it stays on the last
+ *   regular-season game (playoffs aren't served), which is the point: the old "Data current as of
+ *   <run time>" read as if something had changed yesterday in February. Null until a refresh has
+ *   recorded one (migration 007, 2026-09-24).
+ * - `lastScrapedAt`: the finish time of the most recent SUCCESSFUL scrape run as an ISO 8601 UTC
+ *   string, or null if none has completed — "checked nightly", for the About page and operators.
  */
 export interface Meta {
   lastScrapedAt: string | null
+  statsThrough: string | null
 }
 
 /**

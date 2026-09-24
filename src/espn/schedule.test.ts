@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { countRegularSeasonGames, type ScheduleEvent } from './schedule'
+import { countRegularSeasonGames, gameDate, lastCompletedGameDate, type ScheduleEvent } from './schedule'
 
 /** One schedule event, shaped like ESPN's (only the fields the counter reads). */
 const game = (name: string, completed: boolean, type = 2): ScheduleEvent => ({
@@ -46,5 +46,46 @@ describe('countRegularSeasonGames', () => {
     const events = [...games(10, 'STATUS_FINAL', true), game('STATUS_FINAL', true, 3), { seasonType: { type: 2 } }]
     expect(countRegularSeasonGames(events, true)).toBe(10)
     expect(countRegularSeasonGames(events, false)).toBe(11) // no status ≠ postponed → played
+  })
+})
+
+describe('gameDate', () => {
+  it('is the Eastern calendar date, so a late Pacific tip-off is not a day late', () => {
+    expect(gameDate('2026-09-23T23:00Z')).toBe('2026-09-23') // 7pm ET
+    expect(gameDate('2026-09-24T02:00Z')).toBe('2026-09-23') // 7pm PT = 10pm ET, still the 23rd
+    expect(gameDate('not a date')).toBeNull()
+  })
+})
+
+describe('lastCompletedGameDate', () => {
+  const at = (date: string, name: string, completed: boolean, type = 2): ScheduleEvent => ({
+    date,
+    seasonType: { type },
+    competitions: [{ status: { type: { name, completed } } }],
+  })
+
+  it('is the latest COMPLETED regular-season game — not a scheduled, in-progress or postponed one', () => {
+    const events = [
+      at('2026-09-19T23:00Z', 'STATUS_FINAL', true),
+      at('2026-09-21T23:00Z', 'STATUS_FINAL', true),
+      at('2026-09-23T23:00Z', 'STATUS_IN_PROGRESS', false), // tipped off before the refresh
+      at('2026-09-25T23:00Z', 'STATUS_SCHEDULED', false),
+      at('2026-09-27T23:00Z', 'STATUS_POSTPONED', false),
+    ]
+    expect(lastCompletedGameDate(events)).toBe('2026-09-21')
+  })
+
+  it('ignores playoff games (they are not served) and order in the list', () => {
+    const events = [
+      at('2026-10-05T23:00Z', 'STATUS_FINAL', true, 3), // playoffs
+      at('2026-09-19T23:00Z', 'STATUS_FINAL', true),
+      at('2026-09-17T23:00Z', 'STATUS_FINAL', true),
+    ]
+    expect(lastCompletedGameDate(events)).toBe('2026-09-19')
+  })
+
+  it('is null before any game has been completed', () => {
+    expect(lastCompletedGameDate([at('2027-05-15T23:00Z', 'STATUS_SCHEDULED', false)])).toBeNull()
+    expect(lastCompletedGameDate([])).toBeNull()
   })
 })

@@ -55,7 +55,7 @@ Read-only, JSON:
 | `GET /players/:id` | one player + full regular-season history, with each season's league and position rank |
 | `GET /league` | per-year league averages, spread and schedule lengths |
 | `GET /positions` | per-year, per-position averages (where every qualified player that year has a known position) |
-| `GET /meta` | when the data was last refreshed |
+| `GET /meta` | data freshness: `statsThrough` (date of the last completed game in the data) and `lastScrapedAt` |
 
 ## Stack
 
