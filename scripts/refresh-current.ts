@@ -124,12 +124,15 @@ async function main(): Promise<void> {
     // season's teams' schedules. Non-fatal — a null here just makes /meta serve the last run's.
     let lastGameDate: string | null = null
     try {
+      // Every team with a regular-season row this year: the season's team, plus each stint's
+      // team for traded players (stints hang off the season row — they carry no year themselves).
       const { rows: teamRows } = await pool.query<{ team_id: string }>(
         `SELECT DISTINCT team_id::text AS team_id FROM player_seasons
-          WHERE season_year = $1 AND team_id IS NOT NULL
+          WHERE season_year = $1 AND season_type = 2 AND team_id IS NOT NULL
          UNION
-         SELECT DISTINCT team_id::text FROM player_season_stints
-          WHERE season_year = $1 AND team_id IS NOT NULL`,
+         SELECT DISTINCT st.team_id::text FROM player_season_stints st
+           JOIN player_seasons ps ON ps.id = st.season_id
+          WHERE ps.season_year = $1 AND ps.season_type = 2`,
         [currentYear],
       )
       const teamIds = teamRows.map((r) => r.team_id)
