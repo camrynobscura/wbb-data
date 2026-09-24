@@ -96,28 +96,39 @@ export function diffIdentities(
 }
 
 /**
- * Teams that have real game data (a season or stint row) but no CURRENT era name
- * (a team_eras row with end_year IS NULL). That's exactly the set seed-team-eras
- * can and should name — a genuinely new WNBA franchise once it starts playing.
+ * Teams with game data that no era NAMES — a player season (or stint) in a year that no
+ * team_eras row covers. That is exactly the set seed-team-eras can and should name: a genuinely
+ * new WNBA franchise once it starts playing (no era at all), or a revived id playing a season past
+ * its last era (Portland's 132052 in 2026 without a 2026 era).
  *
- * The season/stint requirement is deliberate: ESPN bios sometimes point an
- * international player's "current team" at her NATIONAL team (Brazil, Nigeria),
- * which upsertTeam then creates as a bare teams row. Those have no season data,
- * seed-team-eras can never name them, so flagging them would be a nightly false
- * alarm. Requiring game data excludes them. Returns the ESPN ids to name.
+ * NOT "no current era" (an era with end_year IS NULL), which this checked until 2026-09-24: that
+ * was only right while every team in the database was a current one. The full-history ingest
+ * added the retired franchises — Comets, Sting, Rockers, Sol, Miracle, Starzz, Monarchs — whose
+ * eras all end, and they tripped the check every night although each was fully named.
+ *
+ * The game-data requirement is deliberate: ESPN bios sometimes point an international player's
+ * "current team" at her NATIONAL team (Brazil, Nigeria), which upsertTeam then creates as a bare
+ * teams row. Those have no season data, seed-team-eras can never name them, so flagging them
+ * would be a nightly false alarm. Returns the ESPN ids to name.
  */
 export async function findUnnamedTeams(pool: Pool): Promise<string[]> {
   const { rows } = await pool.query(
-    `SELECT t.espn_id
+    `SELECT DISTINCT t.espn_id
        FROM teams t
+       JOIN (
+              SELECT team_id, season_year FROM player_seasons WHERE team_id IS NOT NULL
+              UNION
+              SELECT st.team_id, ps.season_year
+                FROM player_season_stints st
+                JOIN player_seasons ps ON ps.id = st.season_id
+            ) s ON s.team_id = t.id
       WHERE NOT EXISTS (
               SELECT 1 FROM team_eras te
-               WHERE te.team_id = t.id AND te.end_year IS NULL
+               WHERE te.team_id = t.id
+                 AND te.start_year <= s.season_year
+                 AND (te.end_year IS NULL OR te.end_year >= s.season_year)
             )
-        AND (
-              EXISTS (SELECT 1 FROM player_seasons ps WHERE ps.team_id = t.id)
-           OR EXISTS (SELECT 1 FROM player_season_stints st WHERE st.team_id = t.id)
-            )`,
+      ORDER BY t.espn_id`,
   )
   return rows.map((r) => r.espn_id)
 }
