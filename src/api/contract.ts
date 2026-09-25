@@ -87,6 +87,9 @@ export interface SeasonPlayed {
   posRank: { pts: number; reb: number; ast: number; stl: number; blk: number } | null
 
   // ── advanced / role (for a future advanced section) — season RATES ──
+  // NOT READY FOR ANY UI (2026-09-24): usgPct/astPct are 0–100 while the five below are 0–1, and
+  // the stored values include junk (2001 minutes, 2005 team totals). Normalize + clean first —
+  // wnba-data/DATA-NOTES.md "Advanced rates … NOT ready for any UI" has the measurements and plan.
   tsPct: number | null
   efgPct: number | null
   tovPct: number | null
