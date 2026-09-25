@@ -1,4 +1,4 @@
-import type { IdentityChange } from './watch'
+import type { IdentityChange, TeamRename } from './watch'
 
 /**
  * Build the alert body from what the refresh found. Plain text (no markdown), so it
@@ -8,8 +8,9 @@ import type { IdentityChange } from './watch'
 export function formatAlert(
   changes: IdentityChange[],
   unnamedTeamEspnIds: string[],
+  renamedTeams: TeamRename[] = [],
 ): string | null {
-  if (changes.length === 0 && unnamedTeamEspnIds.length === 0) return null
+  if (changes.length === 0 && unnamedTeamEspnIds.length === 0 && renamedTeams.length === 0) return null
 
   const lines: string[] = ['WNBA data refresh — attention needed']
 
@@ -29,6 +30,14 @@ export function formatAlert(
       'New team(s) with no era name (run seed-team-eras):',
       `• ESPN team id(s): ${unnamedTeamEspnIds.join(', ')}`,
     )
+  }
+
+  if (renamedTeams.length > 0) {
+    lines.push('', 'Team renamed / relocated on ESPN (close the era, open a new one — see ROADMAP):')
+    for (const r of renamedTeams) {
+      const ours = r.eraName ? `${r.eraName} (${r.eraAbbreviation})` : 'no open era'
+      lines.push(`• team ${r.espnId}: ${ours} → ${r.espnName} (${r.espnAbbreviation})`)
+    }
   }
 
   return lines.join('\n')

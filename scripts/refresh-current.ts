@@ -24,6 +24,7 @@ import { Pool } from 'pg'
 import {
   discoverCurrentAppearances,
   fetchBio,
+  fetchCurrentTeams,
   fetchLastGameDate,
   fetchSeasons,
   recoverSeasons,
@@ -38,7 +39,9 @@ import {
   FEATURED_ESPN_IDS,
   snapshotIdentities,
   diffIdentities,
+  diffTeamNames,
   findUnnamedTeams,
+  loadOpenEras,
 } from '../src/notify/watch'
 import { formatAlert, sendAlert } from '../src/notify/send'
 
@@ -143,13 +146,19 @@ async function main(): Promise<void> {
     }
 
     // Heads-up notification (must never fail the run — the data refresh is done).
-    // Diff the featured players' identity and flag any un-named new teams; ping
+    // Diff the featured players' identity, flag un-named new teams and renamed ones; ping
     // Discord if there's anything to act on. No webhook configured → just log.
     try {
       const after = await snapshotIdentities(pool, FEATURED_ESPN_IDS)
       const changes = diffIdentities(before, after)
       const unnamedTeams = await findUnnamedTeams(pool)
-      const alert = formatAlert(changes, unnamedTeams)
+      // A rename / relocation keeps ESPN's franchise id and our open era covers every future
+      // year, so only the NAME changes — compare ESPN's current teams to the open eras. A failed
+      // teams request means "couldn't check" (logged), not "nothing renamed".
+      const espnTeams = await fetchCurrentTeams()
+      if (espnTeams == null) console.error('team-name check skipped: ESPN teams list unavailable')
+      const renamedTeams = espnTeams ? diffTeamNames(espnTeams, await loadOpenEras(pool)) : []
+      const alert = formatAlert(changes, unnamedTeams, renamedTeams)
       if (!alert) {
         console.log('no featured-player or team changes to report')
       } else {

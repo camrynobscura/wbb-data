@@ -267,6 +267,37 @@ export async function fetchTeamName(
   return { name, abbreviation: data.abbreviation }
 }
 
+/** One team as ESPN lists it TODAY (site API, all current franchises in one call). */
+export interface CurrentTeam {
+  espnId: string
+  name: string
+  abbreviation: string
+}
+
+/**
+ * The league's current teams — id, display name, abbreviation — from ESPN's teams list (one
+ * request, ~15 rows). The nightly compares these against the OPEN team_eras rows to notice a
+ * rename or relocation the day ESPN makes it (2026-09-25): ESPN keeps the franchise id across a
+ * move (San Antonio Stars → Las Vegas Aces stayed 17), so the only visible change is the name,
+ * and nothing else in the pipeline reads it. Null when the request fails — the caller treats
+ * that as "couldn't check", never as "no teams".
+ */
+export async function fetchCurrentTeams(): Promise<CurrentTeam[] | null> {
+  const data = await fetchJsonOrNull<{
+    sports?: { leagues?: { teams?: { team?: { id?: string; displayName?: string; abbreviation?: string } }[] }[] }[]
+  }>('https://site.api.espn.com/apis/site/v2/sports/basketball/wnba/teams')
+  const entries = data?.sports?.[0]?.leagues?.[0]?.teams
+  if (!entries) return null
+  const teams: CurrentTeam[] = []
+  for (const e of entries) {
+    const t = e.team
+    if (t?.id && t.displayName && t.abbreviation) {
+      teams.push({ espnId: t.id, name: t.displayName, abbreviation: t.abbreviation })
+    }
+  }
+  return teams
+}
+
 // ─── Seasons /stats doesn't have (the fallback) ───────────────────────────────
 
 interface EventLogResponse {

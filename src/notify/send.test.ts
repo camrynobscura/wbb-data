@@ -39,4 +39,14 @@ describe('formatAlert', () => {
     expect(msg).toContain('17999')
     expect(msg).not.toContain('**') // plain text — reads the same in Telegram and Discord
   })
+
+  it('lists a renamed / relocated team as ours → ESPN, and alone is enough to send', () => {
+    const msg = formatAlert([], [], [
+      { espnId: '18', espnName: 'Houston Comets', espnAbbreviation: 'HOU', eraName: 'Connecticut Sun', eraAbbreviation: 'CON' },
+      { espnId: '4', espnName: 'Houston Comets', espnAbbreviation: 'HOU', eraName: null, eraAbbreviation: null },
+    ])!
+    expect(msg).toContain('team 18: Connecticut Sun (CON) → Houston Comets (HOU)')
+    expect(msg).toContain('team 4: no open era → Houston Comets (HOU)')
+    expect(formatAlert([], [], [])).toBeNull()
+  })
 })

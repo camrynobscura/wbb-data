@@ -132,3 +132,70 @@ export async function findUnnamedTeams(pool: Pool): Promise<string[]> {
   )
   return rows.map((r) => r.espn_id)
 }
+
+/** A franchise's CURRENT era (end_year IS NULL) as the DB names it, keyed by ESPN team id. */
+export interface OpenEra {
+  espnId: string
+  name: string
+  abbreviation: string
+}
+
+export async function loadOpenEras(pool: Pool): Promise<OpenEra[]> {
+  const { rows } = await pool.query(
+    `SELECT t.espn_id, te.name, te.abbreviation
+       FROM team_eras te
+       JOIN teams t ON t.id = te.team_id
+      WHERE te.end_year IS NULL
+      ORDER BY t.espn_id`,
+  )
+  return rows.map((r) => ({ espnId: r.espn_id, name: r.name, abbreviation: r.abbreviation }))
+}
+
+/** One current ESPN team whose name our open era doesn't match — a rename / relocation to act on. */
+export interface TeamRename {
+  espnId: string
+  /** What ESPN calls the team today. */
+  espnName: string
+  espnAbbreviation: string
+  /** What our open era calls it; null when the franchise has no open era (a revived id, or a
+      franchise we've never seen) — the season-based check will name it once games are played,
+      but the name mismatch is visible now. */
+  eraName: string | null
+  eraAbbreviation: string | null
+}
+
+/**
+ * Compare ESPN's current teams to our open eras (pure; the nightly feeds it fetchCurrentTeams +
+ * loadOpenEras). Why this exists (2026-09-25): findUnnamedTeams can't see a relocation. ESPN keeps
+ * the franchise id across a move (Stars → Aces stayed 17), our open era has no end year, so it
+ * covers every future season — a renamed team 18 would be filed under "Connecticut Sun" forever
+ * and no alert would fire. Here a name or abbreviation that differs from the open era is the
+ * signal; acting on it stays manual (close the era, open the new one — ROADMAP). An ESPN team
+ * with no open era at all is reported too (eraName null): a revived franchise the day ESPN lists
+ * it, before any player season exists to trip the other check. Teams that ESPN no longer lists
+ * (folded franchises with closed eras) are not reported — nothing to rename.
+ *
+ * NAME only, not abbreviation: ESPN's own endpoints disagree on abbreviations (the teams list says
+ * PHX, the per-season team endpoint our eras were seeded from says PHO — a dry run on 2026-09-25
+ * flagged Phoenix on that alone), and a relocation always changes the display name. The
+ * abbreviations ride along in the result for the person reading the alert.
+ */
+export function diffTeamNames(
+  espnTeams: readonly { espnId: string; name: string; abbreviation: string }[],
+  openEras: readonly OpenEra[],
+): TeamRename[] {
+  const byId = new Map(openEras.map((e) => [e.espnId, e]))
+  const out: TeamRename[] = []
+  for (const t of espnTeams) {
+    const era = byId.get(t.espnId)
+    if (era && era.name === t.name) continue
+    out.push({
+      espnId: t.espnId,
+      espnName: t.name,
+      espnAbbreviation: t.abbreviation,
+      eraName: era?.name ?? null,
+      eraAbbreviation: era?.abbreviation ?? null,
+    })
+  }
+  return out
+}

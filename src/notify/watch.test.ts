@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { diffIdentities, type Identity } from './watch'
+import { diffIdentities, diffTeamNames, type Identity, type OpenEra } from './watch'
 
 const mk = (o: Partial<Identity>): Identity => ({
   espnId: 'x',
@@ -46,5 +46,42 @@ describe('diffIdentities', () => {
     const after = new Map([['1', mk({ espnId: '1', team: 'Toronto Tempo' })]])
     const [change] = diffIdentities(before, after)
     expect(change?.fields).toEqual([{ field: 'team', from: null, to: 'Toronto Tempo' }])
+  })
+})
+
+describe('diffTeamNames', () => {
+  const eras: OpenEra[] = [
+    { espnId: '18', name: 'Connecticut Sun', abbreviation: 'CON' },
+    { espnId: '17', name: 'Las Vegas Aces', abbreviation: 'LV' },
+  ]
+  const espn = (over: Partial<{ espnId: string; name: string; abbreviation: string }>) => ({
+    espnId: '18',
+    name: 'Connecticut Sun',
+    abbreviation: 'CON',
+    ...over,
+  })
+
+  it('is silent when every current team matches its open era', () => {
+    expect(diffTeamNames([espn({}), espn({ espnId: '17', name: 'Las Vegas Aces', abbreviation: 'LV' })], eras)).toEqual([])
+  })
+
+  it('flags a relocation that kept the franchise id (the Sun → Houston case)', () => {
+    const out = diffTeamNames([espn({ name: 'Houston Comets', abbreviation: 'HOU' })], eras)
+    expect(out).toEqual([
+      { espnId: '18', espnName: 'Houston Comets', espnAbbreviation: 'HOU', eraName: 'Connecticut Sun', eraAbbreviation: 'CON' },
+    ])
+  })
+
+  it('ignores an abbreviation-only difference (ESPN endpoints disagree: PHX vs PHO)', () => {
+    expect(diffTeamNames([espn({ espnId: '17', name: 'Las Vegas Aces', abbreviation: 'LVA' })], eras)).toEqual([])
+  })
+
+  it('reports an ESPN team with no open era at all (a revived id, before any season exists)', () => {
+    const out = diffTeamNames([espn({ espnId: '4', name: 'Houston Comets', abbreviation: 'HOU' })], eras)
+    expect(out).toEqual([{ espnId: '4', espnName: 'Houston Comets', espnAbbreviation: 'HOU', eraName: null, eraAbbreviation: null }])
+  })
+
+  it('ignores open eras ESPN no longer lists (nothing to rename)', () => {
+    expect(diffTeamNames([espn({})], eras)).toEqual([]) // Aces open era present, absent from ESPN's list
   })
 })
