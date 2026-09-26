@@ -27,25 +27,36 @@ export async function getTeamIdByEspn(
   return res.rows.length ? (res.rows[0] as { id: string }).id : null
 }
 
+/** A team with a regular-season row in a season: our surrogate id and ESPN's id. */
+export interface SeasonTeam {
+  /** OUR teams.id — for joins inside the database. */
+  teamId: string
+  /** ESPN's id (teams.espn_id) — the only id to send to ESPN. */
+  espnId: string
+  year: number
+}
+
 /**
- * ESPN's ids (teams.espn_id) for every team with a regular-season row in a year: the season's team,
- * plus each stint's team for traded players (stints hang off the season row — they carry no year
- * themselves). ESPN's ids, NOT our surrogate teams.id: until 2026-09-26 the nightly's "Stats
- * through" step sent teams.id to ESPN's schedule endpoint, which reached only 7 of the 15 2026
- * teams (our 17 is the Mystics, ESPN's 17 the Aces; our 26 is a 400) — the date was right only
- * because one of those 7 played on the last game day.
+ * Every team with a regular-season row in a season (or in every season when `year` is omitted):
+ * the season's team, plus each stint's team for traded players (stints hang off the season row —
+ * they carry no year themselves). Carries BOTH ids because mixing them up is a real bug: until
+ * 2026-09-26 the nightly's "Stats through" step sent teams.id to ESPN's schedule endpoint, which
+ * reached only 7 of the 15 2026 teams (our 17 is the Mystics, ESPN's 17 the Aces).
  */
-export async function seasonTeamEspnIds(pool: Pool, year: number): Promise<string[]> {
-  const { rows } = await pool.query<{ espn_id: string }>(
-    `SELECT DISTINCT t.espn_id FROM player_seasons ps
-       JOIN teams t ON t.id = ps.team_id
-      WHERE ps.season_year = $1 AND ps.season_type = 2
-     UNION
-     SELECT DISTINCT t.espn_id FROM player_season_stints st
-       JOIN player_seasons ps ON ps.id = st.season_id
-       JOIN teams t ON t.id = st.team_id
-      WHERE ps.season_year = $1 AND ps.season_type = 2`,
-    [year],
+export async function seasonTeams(pool: Pool, year?: number): Promise<SeasonTeam[]> {
+  const { rows } = await pool.query<{ team_id: string; espn_id: string; season_year: number }>(
+    `SELECT DISTINCT t.id::text AS team_id, t.espn_id, x.season_year FROM (
+       SELECT team_id, season_year FROM player_seasons
+        WHERE season_type = 2 AND team_id IS NOT NULL
+       UNION
+       SELECT st.team_id, ps.season_year FROM player_season_stints st
+         JOIN player_seasons ps ON ps.id = st.season_id
+        WHERE ps.season_type = 2
+     ) x
+     JOIN teams t ON t.id = x.team_id
+     WHERE $1::int IS NULL OR x.season_year = $1::int
+     ORDER BY x.season_year, team_id`,
+    [year ?? null],
   )
-  return rows.map((r) => r.espn_id)
+  return rows.map((r) => ({ teamId: r.team_id, espnId: r.espn_id, year: r.season_year }))
 }

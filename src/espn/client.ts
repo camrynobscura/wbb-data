@@ -9,7 +9,7 @@ import {
   type PlayerBio,
   type SeasonRecord,
 } from './parse'
-import { countCompletedGames, lastCompletedGameDate, type ScheduleEvent } from './schedule'
+import { countPlayedGames, type ScheduleEvent } from './schedule'
 import { FIRST_WNBA_SEASON, windowStart } from '../seasons'
 
 // Honest, non-browser User-Agent (no personal contact info sent to ESPN).
@@ -216,17 +216,24 @@ export async function fetchTeamTotals(
 }
 
 /**
- * The regular-season games a team has completed so far this season, from its schedule — the
- * IN-PROGRESS season's small-sample denominator (see countCompletedGames in ./schedule.ts).
- * Null when the schedule is unavailable or nothing is completed yet, so the caller can fall
- * back to max games played.
+ * A team's schedule for a season (every event ESPN lists: regular season, the Cup final, playoffs).
+ * Null when it can't be fetched. Read with ./schedule.ts: countPlayedGames, lastCompletedGameDate.
  */
-export async function fetchCompletedGames(espnTeamId: string, year: number): Promise<number | null> {
+export async function fetchSchedule(espnTeamId: string, year: number): Promise<ScheduleEvent[] | null> {
   const data = await fetchJsonOrNull<{ events?: ScheduleEvent[] }>(
     `https://site.api.espn.com/apis/site/v2/sports/basketball/wnba/teams/${espnTeamId}/schedule?season=${year}`,
   )
-  if (!data) return null
-  return countCompletedGames(data.events ?? []) || null
+  return data ? (data.events ?? []) : null
+}
+
+/**
+ * The regular-season games a team has played so far this season, from its schedule (see
+ * countPlayedGames in ./schedule.ts) — for the IN-PROGRESS season. Null when the schedule is
+ * unavailable or nothing has been played yet, so the caller can fall back.
+ */
+export async function fetchPlayedGames(espnTeamId: string, year: number): Promise<number | null> {
+  const events = await fetchSchedule(espnTeamId, year)
+  return events ? countPlayedGames(events) || null : null
 }
 
 /**
@@ -242,41 +249,29 @@ const TEAM_GAMES_CORRECTIONS: Readonly<Record<string, number>> = {
   '8|2002': 32,
 }
 
+/** A finished season's game count and where it came from (team_season_games.source). */
+export interface TeamGames {
+  games: number
+  source: 'team_stats' | 'correction'
+}
+
 /**
  * The regular-season games a team played in a FINISHED season, from ESPN's team statistics
- * (`gamesPlayed`) — the small-sample denominator for every past year. Not the schedule: old
- * schedules can't be counted (see countCompletedGames). Checked 2026-09-26 for the Sparks, all
- * 30 seasons: equal to the stored league_seasons.scheduled_games in 29, and 32 (right) where
- * the schedule said 33 in 2001. Null when the season is unavailable, so the caller can fall
- * back to max games played. A hand-checked correction (TEAM_GAMES_CORRECTIONS) wins over ESPN.
+ * (`gamesPlayed`). Not the schedule: old schedules can't be counted (see countPlayedGames).
+ * Checked 2026-09-26 on all 380 team-seasons: right everywhere a second source could check,
+ * except the entries in TEAM_GAMES_CORRECTIONS — a correction wins over ESPN, without asking.
+ * Null when ESPN has no statistics for the team that year (the Comets 2007–08, the Monarchs
+ * 2007–09), so the caller can fall back to the season total.
  */
-export async function fetchTeamGamesPlayed(espnTeamId: string, year: number): Promise<number | null> {
+export async function fetchTeamGames(espnTeamId: string, year: number): Promise<TeamGames | null> {
   const corrected = TEAM_GAMES_CORRECTIONS[`${espnTeamId}|${year}`]
-  if (corrected !== undefined) return corrected
+  if (corrected !== undefined) return { games: corrected, source: 'correction' }
   const data = await fetchJsonOrNull<CoreStatsResponse>(
     coreSeasonUrl(`${year}/types/2/teams/${espnTeamId}/statistics`),
   )
   if (!data) return null
   const games = flattenCoreStats(data).gamesPlayed
-  return games !== undefined && Number.isInteger(games) && games > 0 ? games : null
-}
-
-/**
- * "Stats through …": the latest completed regular-season game date across the given teams'
- * schedules (each team's schedule has that team's off days, so one team isn't enough). Null when
- * no schedule could be fetched or nothing has been completed. A failed team schedule is skipped,
- * not fatal — this feeds a footer line, never the data.
- */
-export async function fetchLastGameDate(espnTeamIds: string[], year: number): Promise<string | null> {
-  let latest: string | null = null
-  for (const espnTeamId of espnTeamIds) {
-    const data = await fetchJsonOrNull<{ events?: ScheduleEvent[] }>(
-      `https://site.api.espn.com/apis/site/v2/sports/basketball/wnba/teams/${espnTeamId}/schedule?season=${year}`,
-    )
-    const d = data ? lastCompletedGameDate(data.events ?? []) : null
-    if (d && (latest == null || d > latest)) latest = d
-  }
-  return latest
+  return games !== undefined && Number.isInteger(games) && games > 0 ? { games, source: 'team_stats' } : null
 }
 
 /** Era-accurate team name + abbreviation for a specific season (null if none). */

@@ -1,5 +1,5 @@
 import type { Pool } from 'pg'
-import { fetchCompletedGames, fetchTeamGamesPlayed } from '../espn/client'
+import { fetchPlayedGames, fetchTeamGames } from '../espn/client'
 import { currentSeason } from '../seasons'
 import { pctlLadder } from './spread'
 
@@ -11,16 +11,18 @@ import { pctlLadder } from './spread'
 // (DECISIONS). One bar decides BOTH which player-seasons the app greys out AND which qualify
 // for these league averages, the position averages, and every rank — one crowd, so a rank, an
 // average, and a spread always describe the same players. The SQL compares in integers
-// (games_played × FULL >= QUALIFYING × slate), never a float fraction, so no season can land on
+// (games_played × FULL >= QUALIFYING × the team's games), never a float fraction, so no season can land on
 // the wrong side of the line by rounding. Must stay equal to the frontend's pair
 // (wnba-arc/src/lib/deviation.ts QUALIFYING_GAMES / FULL_SCHEDULE_GAMES); computePositions.ts
 // and the API's RANK_SQL import these rather than keeping a copy.
 export const QUALIFYING_GAMES = 20
 export const FULL_SCHEDULE_GAMES = 44
 
-// $1 = a JSON map {season_year: real_slate} we fetched from ESPN (team statistics for a finished
-//      season, the schedule's completed games for the current one; missing seasons fall back to
-//      MAX(games_played) over single-team rows).
+// $1 = a JSON map {season_year: real_slate} we fetched from ESPN — the season total, one team's
+//      count (the Sparks'): team statistics for a finished season, the schedule's played games for
+//      the current one; missing seasons fall back to MAX(games_played) over single-team rows. Each
+//      player qualifies against their own team's count (team_season_games); this total is the
+//      fallback and what /league serves as scheduledGames.
 // $2 = QUALIFYING_GAMES, $3 = FULL_SCHEDULE_GAMES: a season qualifies when
 //      games_played × $3 >= $2 × its slate (integer arithmetic on both sides).
 // $4 = optional single season year to (re)compute; NULL recomputes every year. Filtering
@@ -48,13 +50,17 @@ sched AS (
   FROM player_max pm
   LEFT JOIN fetched f ON f.season_year = pm.season_year
 ),
+-- A season qualifies against the player's OWN team's games (player_season_team_games, migration
+-- 008 — the last team for a traded player), falling back to the season total for a team with no
+-- row yet. The same Y the page prints and the rank query uses.
 qualified AS (
   SELECT ps.*, s.scheduled_games, p.position
   FROM player_seasons ps
   JOIN sched s   ON s.season_year = ps.season_year
   JOIN players p ON p.id = ps.player_id
+  LEFT JOIN player_season_team_games v ON v.season_id = ps.id
   WHERE ps.season_type = 2
-    AND ps.games_played * $3::int >= $2::int * s.scheduled_games
+    AND ps.games_played * $3::int >= $2::int * COALESCE(v.team_games, s.scheduled_games)
 )
 INSERT INTO league_seasons (
   season_year, scheduled_games, qualified_players, qualified_with_position,
@@ -149,18 +155,18 @@ export async function computeLeague(
   )
   const years = yearsRes.rows.map((r) => r.season_year)
 
-  // Real slate per season from one team (team 6 = LA Sparks, active since 1997). For a finished
+  // The season total, from one team (team 6 = LA Sparks, active since 1997). For a finished
   // season, the games the team played per ESPN's team statistics — not its schedule, which can't
   // be counted for old seasons (the 2001 schedule lists a game never played; see
-  // countCompletedGames in src/espn/schedule.ts). For the in-progress current season, the games
-  // completed so far, so the small-sample gate and the qualified-player filter both scale to how
-  // much of the season has actually happened (a regular isn't flagged small-sample just because
-  // the season is young). See wnba-arc deviation.ts (isSmallSample) — the two share
-  // QUALIFYING_GAMES / FULL_SCHEDULE_GAMES.
+  // countPlayedGames in src/espn/schedule.ts). For the in-progress current season, the games
+  // played so far, so the bars scale to how much of the season has actually happened (a regular
+  // isn't flagged small-sample just because the season is young). Each player's own bar reads
+  // their team's count (team_season_games); this total is the fallback. See wnba-arc
+  // deviation.ts (gamesTier) — the two share QUALIFYING_GAMES / FULL_SCHEDULE_GAMES.
   const current = currentSeason()
   const slates: Record<number, number> = {}
   for (const y of years) {
-    const n = y === current ? await fetchCompletedGames('6', y) : await fetchTeamGamesPlayed('6', y)
+    const n = y === current ? await fetchPlayedGames('6', y) : (await fetchTeamGames('6', y))?.games
     if (n) slates[y] = n
   }
 

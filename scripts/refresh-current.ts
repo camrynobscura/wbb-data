@@ -3,7 +3,8 @@
  * on a cron. Historical seasons never change, so it touches only the in-progress
  * year: discover the current player universe, re-ingest each player's current-year
  * row (and refresh their bio), hand the "in progress" flag over to the current
- * year, then rebuild the current year's role rates and league averages.
+ * year, then rebuild the current year's role rates, each team's games so far, and the league
+ * and position averages.
  *
  * Everything keys off new Date().getFullYear() and a rolling discovery window, so
  * it rolls into the next season on its own with no code change (see DECISIONS).
@@ -25,12 +26,12 @@ import {
   discoverCurrentAppearances,
   fetchBio,
   fetchCurrentTeams,
-  fetchLastGameDate,
   fetchSeasons,
   recoverSeasons,
 } from '../src/espn/client'
 import { ingestPlayer } from '../src/db/ingest'
-import { seasonTeamEspnIds } from '../src/db/teams'
+import { seasonTeams } from '../src/db/teams'
+import { refreshCurrentTeamGames } from '../src/db/teamGames'
 import { backfillRoles } from '../src/db/backfillRoles'
 import { computeLeague } from '../src/db/computeLeague'
 import { computePositions } from '../src/db/computePositions'
@@ -116,6 +117,18 @@ async function main(): Promise<void> {
     const { seasons, rolesFilled } = await backfillRoles(pool, { year: currentYear })
     console.log(`backfilled ${seasons} ${currentYear} season(s), ${rolesFilled} with role rates`)
 
+    // Each team's games so far (team_season_games — the Y in its players' "of Y games"), from its
+    // schedule, BEFORE the averages: their pools read these rows. The same downloads give "Stats
+    // through …" for the footer. A failed schedule keeps that team's row from last night (non-fatal;
+    // a null date just makes /meta serve the last run's); a database error fails the run.
+    const teamGames = await refreshCurrentTeamGames(pool, await seasonTeams(pool, currentYear))
+    const lastGameDate = teamGames.lastGameDate
+    console.log(
+      `team games: ${teamGames.written} team(s) from schedules` +
+        (teamGames.failed.length ? `; schedule failed for ESPN ${teamGames.failed.join(', ')}` : '') +
+        `; stats through ${lastGameDate ?? '(unknown)'}`,
+    )
+
     const leagueCount = await computeLeague(pool, { year: currentYear })
     console.log(`recomputed league averages for ${leagueCount} season(s)`)
 
@@ -123,19 +136,6 @@ async function main(): Promise<void> {
     // this must run after computeLeague.
     const positionCount = await computePositions(pool, { year: currentYear })
     console.log(`recomputed position averages: ${positionCount} (year, position) row(s)`)
-
-    // "Stats through …" for the footer: the latest completed regular-season game across this
-    // season's teams' schedules. Non-fatal — a null here just makes /meta serve the last run's.
-    let lastGameDate: string | null = null
-    try {
-      // ESPN's id for every team with a regular-season row this year (seasonTeamEspnIds — ESPN's
-      // ids, not our teams.id; mixing the two is the bug fixed 2026-09-26).
-      const espnTeamIds = await seasonTeamEspnIds(pool, currentYear)
-      lastGameDate = await fetchLastGameDate(espnTeamIds, currentYear)
-      console.log(`stats through ${lastGameDate ?? '(unknown)'} (${espnTeamIds.length} team schedules)`)
-    } catch (dateErr) {
-      console.error(`last-game-date step failed (non-fatal): ${String(dateErr)}`)
-    }
 
     // Heads-up notification (must never fail the run — the data refresh is done).
     // Diff the featured players' identity, flag un-named new teams and renamed ones; ping

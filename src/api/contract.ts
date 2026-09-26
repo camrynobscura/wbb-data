@@ -48,6 +48,11 @@ export interface SeasonPlayed {
   played: true
   age: number | null // season_year − year(birth_date); null if birth_date unknown
   gp: number
+  // The games the player's team played that season (or so far, in the season in progress) — the Y
+  // in "17 of Y games" and what every games bar scales by: small sample, partial, qualified, the
+  // shooting-% rank floors. The last team they played for, if traded; never less than gp. Falls
+  // back to the season total (LeagueSeason.scheduledGames) for a team with no count. Migration 008.
+  teamGames: number
 
   // ── basic (what the current UI shows) — PER-GAME, except fgp/tpp = decimals ──
   min: number | null // minutes ÷ gp; null when minutes weren't available (~10%)
@@ -187,7 +192,7 @@ export interface StatPctiles {
  */
 export interface LeagueSeason {
   year: number
-  scheduledGames: number // real slate (fetched per season; see compute-league.ts)
+  scheduledGames: number // the season total (one team's count — see computeLeague.ts); a player's own bar is SeasonPlayed.teamGames
 
   // basic league averages (per-game / decimals), matching the 7 UI stats
   pts: number

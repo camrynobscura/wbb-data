@@ -20,7 +20,8 @@ export const MIN_QUALIFIED = 8
 const DELETE_SQL = `DELETE FROM position_seasons WHERE ($1::int IS NULL OR season_year = $1::int)`
 
 // $1 = optional single season year (NULL = all). $2 = QUALIFYING_GAMES, $3 = FULL_SCHEDULE_GAMES
-// (games_played × $3 >= $2 × slate). $4 = min sample.
+// (games_played × $3 >= $2 × the player's team's games — player_season_team_games, migration 008,
+// falling back to the season total). $4 = min sample.
 // scheduled_games is read from league_seasons (already computed this run), so this never
 // re-fetches a team schedule from ESPN. The math mirrors computeLeague.ts exactly (rate stats
 // from summed totals, not a mean of per-player rates) so a position average is directly
@@ -74,10 +75,11 @@ SELECT
 FROM player_seasons ps
 JOIN players p         ON p.id = ps.player_id
 JOIN league_seasons ls ON ls.season_year = ps.season_year
+LEFT JOIN player_season_team_games v ON v.season_id = ps.id
 WHERE ps.season_type = 2
   AND p.position IS NOT NULL
   AND ($1::int IS NULL OR ps.season_year = $1::int)
-  AND ps.games_played * $3::int >= $2::int * ls.scheduled_games
+  AND ps.games_played * $3::int >= $2::int * COALESCE(v.team_games, ls.scheduled_games)
   AND ls.qualified_with_position = ls.qualified_players
 GROUP BY ps.season_year, p.position
 HAVING COUNT(*) >= $4::int
