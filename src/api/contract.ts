@@ -67,24 +67,41 @@ export interface SeasonPlayed {
   fgAtt: number
   fg3Made: number
   fg3Att: number
+  // Free throws and the season's total points, so the frontend can pool TS% the same way
+  // (SUM(points) / 2·(SUM(fga) + 0.44·SUM(fta))) and gate it on shooting possessions.
+  ftMade: number
+  ftAtt: number
+  ptsTotal: number
 
-  // ── league rank (counting stats only) ──
-  // `pool` = how many player-seasons qualified for that year's league averages (>= SMALL_SAMPLE_FRACTION
-  // of the slate — the same set the ladders and stddevs are computed from, so "3rd of 141" and the
-  // percentile never disagree). Null only if the year has no league row. `rank` = this season's place in
-  // that pool per stat, 1 = best, ties share a rank (RANK(), so 1, 1, 3); null when the season itself
-  // didn't qualify (small sample) or there's no pool. The pool is every qualified player on record for
-  // that season — the whole league, since every player who has played since 1997 is on record.
+  // ── league rank ──
+  // `pool` = how many player-seasons qualified for that year's league averages (QUALIFYING_GAMES of
+  // FULL_SCHEDULE_GAMES, scaled to the slate — the same set the ladders and stddevs are computed from,
+  // so "3rd of 141" and the percentile never disagree). Null only if the year has no league row.
+  // `rank` = this season's place in that pool per stat, 1 = best, ties share a rank (RANK(), so 1, 1,
+  // 3); null when the season itself didn't qualify (small sample) or there's no pool. The pool is every
+  // qualified player on record for that season — the whole league, since every player who has played
+  // since 1997 is on record.
+  // The three shooting percentages rank among a SMALLER pool: the qualified seasons that also cleared
+  // that stat's rank floor — attempts OR makes per 44 games, scaled (3P% 60 att or 20 made, FG% 200
+  // att or 85 made, TS% 125 shooting possessions; queries.ts RATE_RANK_FLOOR) — AND its fixed color
+  // floor (RATE_TINT_FLOOR: 40 3PA / 100 FGA / 100 possessions, so a ranked season is always a colored
+  // one), so a 4-of-10 can't lead the league. `ratePool` is that count per stat, and the rate key in
+  // `rank` is null when THIS season is under either (the counting keys are never null inside a
+  // non-null `rank`).
   pool: number | null
-  rank: { pts: number; reb: number; ast: number; stl: number; blk: number } | null
-  // The same two, among the player's OWN POSITION that year — the crowd the /positions averages
+  rank: SeasonRanks | null
+  ratePool: { fgp: number; tpp: number; tsPct: number } | null
+  // The same, among the player's OWN POSITION that year — the crowd the /positions averages
   // describe, gated the same way: the bucket has >= 8 qualified players (computePositions.MIN_QUALIFIED)
   // AND every qualified player that year has a known position (ESPN has none for most pre-2012
   // players, so a position crowd for those years would be incomplete — migration 005). Where
-  // /positions has no (year, position) row, both are null. Also null when the player has no position.
+  // /positions has no (year, position) row, all are null. Also null when the player has no position.
   // The position is the player's current one (players.position), as for the position averages.
+  // A percentage's position pool is null (and its position rank with it) when fewer than 8 of the
+  // position cleared the floor that year — no "1st of 3 centers".
   posPool: number | null
-  posRank: { pts: number; reb: number; ast: number; stl: number; blk: number } | null
+  posRank: SeasonRanks | null
+  posRatePool: { fgp: number | null; tpp: number | null; tsPct: number | null } | null
 
   // ── advanced / role (for a future advanced section) — season RATES ──
   // NOT READY FOR ANY UI (2026-09-24): usgPct/astPct are 0–100 while the five below are 0–1, and
@@ -100,6 +117,19 @@ export interface SeasonPlayed {
   orebPct: number | null // intentionally null for v1 (no ESPN opponent rebounds)
   drebPct: number | null
   trebPct: number | null
+}
+
+/** A season's place per stat, 1 = best. Counting stats always present; a shooting % is null when
+    the season is under that stat's made-shot floor (see SeasonPlayed.ratePool). */
+export interface SeasonRanks {
+  pts: number
+  reb: number
+  ast: number
+  stl: number
+  blk: number
+  fgp: number | null
+  tpp: number | null
+  tsPct: number | null
 }
 
 export interface SeasonMissed {

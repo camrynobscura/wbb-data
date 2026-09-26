@@ -9,7 +9,7 @@
  *    precision — we Number() them.
  */
 import type { Pool } from 'pg'
-import { SMALL_SAMPLE_FRACTION } from '../db/computeLeague'
+import { FULL_SCHEDULE_GAMES, QUALIFYING_GAMES } from '../db/computeLeague'
 import { MIN_QUALIFIED } from '../db/computePositions'
 import { currentSeason, windowStart } from '../seasons'
 import type {
@@ -106,6 +106,8 @@ interface SeasonRow {
   fg_att: number
   fg3_made: number
   fg3_att: number
+  ft_made: number
+  ft_att: number
   rebounds: number
   assists: number
   steals: number
@@ -138,32 +140,89 @@ interface RankRow {
   p_ast: string | null
   p_stl: string | null
   p_blk: string | null
+  // The shooting percentages: each ranks only among the qualified seasons that ALSO cleared its
+  // rank floor (RATE_RANK_FLOOR, scaled to the slate) AND its color floor (RATE_TINT_FLOOR), so each
+  // has its own pool. The rank is null when this season is under either; the pool is the year's
+  // count regardless.
+  pool_fgp: string
+  pool_tpp: string
+  pool_ts: string
+  r_fgp: string | null
+  r_tpp: string | null
+  r_ts: string | null
+  // …and among the player's position (null when fewer than MIN_QUALIFIED of them cleared the
+  // floor, or when there is no position bucket at all).
+  pos_pool_fgp: string | null
+  pos_pool_tpp: string | null
+  pos_pool_ts: string | null
+  p_fgp: string | null
+  p_tpp: string | null
+  p_ts: string | null
 }
 
+/**
+ * Rank floors for a shooting percentage, per FULL_SCHEDULE_GAMES-game season and scaled to the
+ * year's slate in the SQL (count × 44 >= floor × slate). A season clears it with ENOUGH ATTEMPTS
+ * OR ENOUGH MAKES (user, 2026-09-25): 3P% 60 attempts or 20 made; FG% 200 attempts or 85 made;
+ * TS% 125 "shooting possessions" (FGA + 0.44 × FTA, the TS% denominator — already attempts).
+ * The made counts are Basketball-Reference's WNBA rate-stat requirements; the attempt counts are
+ * the same bar at the league's all-time average (33.9% from three → 20 made ≈ 59 attempts; 43.1%
+ * FG → 85 made ≈ 197), added so a high-volume shooter who misses a lot is still ranked (a makes-only
+ * floor left Kia Nurse's 69-of-207 out) without dropping an efficient low-volume one (an
+ * attempts-only floor left Makayla Timpson's 100-of-156 out). Measured: the "or" rule only adds —
+ * +133 3P% and +126 FG% seasons since 1997, none dropped. Without floors a 4-of-10 season leads the
+ * league at 40% (2023: Aliyah Boston). The frontend mirrors the numbers (deviation.ts RANK_FLOOR)
+ * only to word "Needs 55 attempts from three or 19 made to rank" — keep them paired.
+ */
+export const RATE_RANK_FLOOR = { fgAtt: 200, fgMade: 85, fg3Att: 60, fg3Made: 20, tsPossessions: 125 } as const
+
+/**
+ * The frontend's COLOR floors (deviation.ts TINT_FLOOR — keep paired), fixed counts, not scaled:
+ * a season under one shows that cell hollow. The rank pool requires them too, so a ranked season
+ * is always a colored one (2026-09-25): the scaled rank floors dip below these in short seasons —
+ * in the 22-game 2020 bubble 25 3P% seasons (Dearica Hamby 18-of-38) and 3 FG% seasons were being
+ * ranked, and counted in everyone's "of N", while their cells were hollow and showed no rank.
+ */
+export const RATE_TINT_FLOOR = { fgAtt: 100, fg3Att: 40, tsPossessions: 100 } as const
+
 // Where each of a player's seasons ranks among that year's QUALIFIED player-seasons — the same pool
-// computeLeague.ts averages over (>= SMALL_SAMPLE_FRACTION of the stored slate), so rank and percentile
-// describe the same crowd. One window pass over the player's years only; the player's own rows are
+// computeLeague.ts averages over (QUALIFYING_GAMES of FULL_SCHEDULE_GAMES, scaled to the stored
+// slate), so rank and percentile describe the same crowd. One window pass over the player's years only; the player's own rows are
 // then picked out. A season that doesn't qualify gets no row here → rank null, pool still known.
 // A second set of windows partitions by position — the same crowd computePositions.ts averages
 // over, gated the same two ways so a position rank exists only where the position average does:
-// the bucket has >= $3 (MIN_QUALIFIED) players, AND the season is position-complete — every
+// the bucket has >= $4 (MIN_QUALIFIED) players, AND the season is position-complete — every
 // qualified player that year has a position (league_seasons.qualified_with_position =
 // qualified_players, migration 005; ESPN has no position for most pre-2012 players). The
 // completeness check lives in pos_pools, so an incomplete year simply has no position pool.
+// The three shooting percentages get the same treatment with two more gates each: a season ranks
+// only if it also cleared that stat's rank floor (RATE_RANK_FLOOR, $5–$9, attempts OR makes, scaled
+// to the slate) AND its color floor (RATE_TINT_FLOOR, $10–$12, fixed), and its pool is the count
+// that cleared both — so "4th of 69" for 3P% and "3rd of 122" for points sit side by side with
+// different, honest denominators, and no hollow cell is ever counted.
 const RANK_SQL = `
 WITH pool AS (
-  SELECT ps.player_id, ps.season_year, ps.games_played, p.position,
-         ps.points, ps.rebounds, ps.assists, ps.steals, ps.blocks
+  SELECT ps.player_id, ps.season_year, ps.games_played, p.position, ls.scheduled_games,
+         ps.points, ps.rebounds, ps.assists, ps.steals, ps.blocks,
+         ps.fg_made, ps.fg_att, ps.fg3_made, ps.fg3_att, ps.ft_att, ps.ts_pct,
+         (ls.qualified_with_position = ls.qualified_players) AS pos_complete,
+         -- Cleared this stat's rank floor (attempts OR makes, scaled to the slate, integer
+         -- arithmetic) AND its fixed color floor, so every ranked season is a colored one.
+         ((ps.fg_att * $3::int >= $5::int * ls.scheduled_games OR ps.fg_made * $3::int >= $6::int * ls.scheduled_games)
+           AND ps.fg_att >= $10::int)                                                  AS ok_fgp,
+         ((ps.fg3_att * $3::int >= $7::int * ls.scheduled_games OR ps.fg3_made * $3::int >= $8::int * ls.scheduled_games)
+           AND ps.fg3_att >= $11::int)                                                 AS ok_tpp,
+         ((ps.fg_att + 0.44 * ps.ft_att) * $3::int >= $9::int * ls.scheduled_games
+           AND (ps.fg_att + 0.44 * ps.ft_att) >= $12::int)                             AS ok_ts
   FROM player_seasons ps
   JOIN players p         ON p.id = ps.player_id
   JOIN league_seasons ls ON ls.season_year = ps.season_year
   WHERE ps.season_type = 2
-    AND ps.games_played >= $2::numeric * ls.scheduled_games
+    AND ps.games_played * $3::int >= $2::int * ls.scheduled_games
     AND ps.season_year IN (SELECT season_year FROM player_seasons WHERE player_id = $1 AND season_type = 2)
 ),
 ranked AS (
   SELECT player_id, season_year,
-         COUNT(*) OVER (PARTITION BY season_year) AS pool,
          RANK() OVER (PARTITION BY season_year ORDER BY points::numeric   / games_played DESC) AS r_pts,
          RANK() OVER (PARTITION BY season_year ORDER BY rebounds::numeric / games_played DESC) AS r_reb,
          RANK() OVER (PARTITION BY season_year ORDER BY assists::numeric  / games_played DESC) AS r_ast,
@@ -176,37 +235,83 @@ ranked AS (
          RANK() OVER (PARTITION BY season_year, position ORDER BY blocks::numeric   / games_played DESC) AS p_blk
   FROM pool
 ),
-pools AS (SELECT season_year, COUNT(*) AS pool FROM pool GROUP BY season_year),
+-- The shooting percentages rank only among the seasons over that stat's floor: one window pass
+-- each over the seasons that cleared it, league-wide and within the position.
+rate_fgp AS (
+  SELECT player_id, season_year,
+         RANK() OVER (PARTITION BY season_year ORDER BY fg_made::numeric / fg_att DESC) AS r,
+         RANK() OVER (PARTITION BY season_year, position ORDER BY fg_made::numeric / fg_att DESC) AS pr
+  FROM pool WHERE ok_fgp
+),
+rate_tpp AS (
+  SELECT player_id, season_year,
+         RANK() OVER (PARTITION BY season_year ORDER BY fg3_made::numeric / fg3_att DESC) AS r,
+         RANK() OVER (PARTITION BY season_year, position ORDER BY fg3_made::numeric / fg3_att DESC) AS pr
+  FROM pool WHERE ok_tpp
+),
+rate_ts AS (
+  SELECT player_id, season_year,
+         RANK() OVER (PARTITION BY season_year ORDER BY ts_pct DESC) AS r,
+         RANK() OVER (PARTITION BY season_year, position ORDER BY ts_pct DESC) AS pr
+  FROM pool WHERE ok_ts
+),
+pools AS (
+  SELECT season_year, COUNT(*) AS pool,
+         COUNT(*) FILTER (WHERE ok_fgp) AS pool_fgp,
+         COUNT(*) FILTER (WHERE ok_tpp) AS pool_tpp,
+         COUNT(*) FILTER (WHERE ok_ts)  AS pool_ts
+  FROM pool GROUP BY season_year
+),
 pos_pools AS (
-  SELECT pool.season_year, COUNT(*) AS pos_pool
+  SELECT season_year, COUNT(*) AS pos_pool,
+         COUNT(*) FILTER (WHERE ok_fgp) AS pos_pool_fgp,
+         COUNT(*) FILTER (WHERE ok_tpp) AS pos_pool_tpp,
+         COUNT(*) FILTER (WHERE ok_ts)  AS pos_pool_ts
   FROM pool
-  JOIN league_seasons ls ON ls.season_year = pool.season_year
-  WHERE pool.position = (SELECT position FROM players WHERE id = $1)
-    AND ls.qualified_with_position = ls.qualified_players
-  GROUP BY pool.season_year
+  WHERE position = (SELECT position FROM players WHERE id = $1) AND pos_complete
+  GROUP BY season_year
 )
-SELECT p.season_year, p.pool,
+SELECT p.season_year, p.pool, p.pool_fgp, p.pool_tpp, p.pool_ts,
        r.r_pts, r.r_reb, r.r_ast, r.r_stl, r.r_blk,
-       CASE WHEN pp.pos_pool >= $3::int THEN pp.pos_pool END AS pos_pool,
-       CASE WHEN pp.pos_pool >= $3::int THEN r.p_pts END AS p_pts,
-       CASE WHEN pp.pos_pool >= $3::int THEN r.p_reb END AS p_reb,
-       CASE WHEN pp.pos_pool >= $3::int THEN r.p_ast END AS p_ast,
-       CASE WHEN pp.pos_pool >= $3::int THEN r.p_stl END AS p_stl,
-       CASE WHEN pp.pos_pool >= $3::int THEN r.p_blk END AS p_blk
+       f.r AS r_fgp, t.r AS r_tpp, s.r AS r_ts,
+       CASE WHEN pp.pos_pool >= $4::int THEN pp.pos_pool END AS pos_pool,
+       CASE WHEN pp.pos_pool >= $4::int THEN r.p_pts END AS p_pts,
+       CASE WHEN pp.pos_pool >= $4::int THEN r.p_reb END AS p_reb,
+       CASE WHEN pp.pos_pool >= $4::int THEN r.p_ast END AS p_ast,
+       CASE WHEN pp.pos_pool >= $4::int THEN r.p_stl END AS p_stl,
+       CASE WHEN pp.pos_pool >= $4::int THEN r.p_blk END AS p_blk,
+       -- A position rank for a percentage needs MIN_QUALIFIED of the position over the floor too,
+       -- so "1st of 3 centers" never appears.
+       CASE WHEN pp.pos_pool_fgp >= $4::int THEN pp.pos_pool_fgp END AS pos_pool_fgp,
+       CASE WHEN pp.pos_pool_tpp >= $4::int THEN pp.pos_pool_tpp END AS pos_pool_tpp,
+       CASE WHEN pp.pos_pool_ts  >= $4::int THEN pp.pos_pool_ts  END AS pos_pool_ts,
+       CASE WHEN pp.pos_pool_fgp >= $4::int THEN f.pr END AS p_fgp,
+       CASE WHEN pp.pos_pool_tpp >= $4::int THEN t.pr END AS p_tpp,
+       CASE WHEN pp.pos_pool_ts  >= $4::int THEN s.pr END AS p_ts
 FROM pools p
-LEFT JOIN ranked r    ON r.season_year = p.season_year AND r.player_id = $1
+LEFT JOIN ranked r     ON r.season_year = p.season_year AND r.player_id = $1
+LEFT JOIN rate_fgp f   ON f.season_year = p.season_year AND f.player_id = $1
+LEFT JOIN rate_tpp t   ON t.season_year = p.season_year AND t.player_id = $1
+LEFT JOIN rate_ts s    ON s.season_year = p.season_year AND s.player_id = $1
 LEFT JOIN pos_pools pp ON pp.season_year = p.season_year
 ORDER BY p.season_year`
 
 function toSeasonPlayed(r: SeasonRow, birthYear: number | null, rk: RankRow | undefined): SeasonPlayed {
   const gp = r.games_played
+  const opt = (v: string | null): number | null => (v == null ? null : Number(v))
   const rank =
     rk && rk.r_pts != null
-      ? { pts: Number(rk.r_pts), reb: Number(rk.r_reb), ast: Number(rk.r_ast), stl: Number(rk.r_stl), blk: Number(rk.r_blk) }
+      ? {
+          pts: Number(rk.r_pts), reb: Number(rk.r_reb), ast: Number(rk.r_ast), stl: Number(rk.r_stl), blk: Number(rk.r_blk),
+          fgp: opt(rk.r_fgp), tpp: opt(rk.r_tpp), tsPct: opt(rk.r_ts),
+        }
       : null
   const posRank =
     rk && rk.p_pts != null
-      ? { pts: Number(rk.p_pts), reb: Number(rk.p_reb), ast: Number(rk.p_ast), stl: Number(rk.p_stl), blk: Number(rk.p_blk) }
+      ? {
+          pts: Number(rk.p_pts), reb: Number(rk.p_reb), ast: Number(rk.p_ast), stl: Number(rk.p_stl), blk: Number(rk.p_blk),
+          fgp: opt(rk.p_fgp), tpp: opt(rk.p_tpp), tsPct: opt(rk.p_ts),
+        }
       : null
   return {
     year: r.season_year,
@@ -215,8 +320,10 @@ function toSeasonPlayed(r: SeasonRow, birthYear: number | null, rk: RankRow | un
     gp,
     pool: rk ? Number(rk.pool) : null,
     rank,
+    ratePool: rk ? { fgp: Number(rk.pool_fgp), tpp: Number(rk.pool_tpp), tsPct: Number(rk.pool_ts) } : null,
     posPool: rk && rk.pos_pool != null ? Number(rk.pos_pool) : null,
     posRank,
+    posRatePool: rk && rk.pos_pool != null ? { fgp: opt(rk.pos_pool_fgp), tpp: opt(rk.pos_pool_tpp), tsPct: opt(rk.pos_pool_ts) } : null,
     min: r.minutes === null ? null : perGame(Number(r.minutes), gp),
     pts: perGame(r.points, gp),
     reb: perGame(r.rebounds, gp),
@@ -230,6 +337,9 @@ function toSeasonPlayed(r: SeasonRow, birthYear: number | null, rk: RankRow | un
     fgAtt: r.fg_att,
     fg3Made: r.fg3_made,
     fg3Att: r.fg3_att,
+    ftMade: r.ft_made,
+    ftAtt: r.ft_att,
+    ptsTotal: r.points,
     tsPct: num3(r.ts_pct),
     efgPct: num3(r.efg_pct),
     tovPct: num3(r.tov_pct),
@@ -265,7 +375,7 @@ export async function getPlayer(pool: Pool, id: string): Promise<PlayerDetail | 
 
   const seasonRes = await pool.query<SeasonRow>(
     `SELECT season_year, games_played, minutes, points, fg_made, fg_att,
-            fg3_made, fg3_att, rebounds, assists, steals, blocks,
+            fg3_made, fg3_att, ft_made, ft_att, rebounds, assists, steals, blocks,
             ts_pct, efg_pct, tov_pct, fg3a_rate, ft_rate, usg_pct, ast_pct,
             oreb_pct, dreb_pct, treb_pct
      FROM player_seasons
@@ -273,7 +383,12 @@ export async function getPlayer(pool: Pool, id: string): Promise<PlayerDetail | 
      ORDER BY season_year`,
     [id],
   )
-  const rankRes = await pool.query<RankRow>(RANK_SQL, [id, SMALL_SAMPLE_FRACTION, MIN_QUALIFIED])
+  const rankRes = await pool.query<RankRow>(RANK_SQL, [
+    id, QUALIFYING_GAMES, FULL_SCHEDULE_GAMES, MIN_QUALIFIED,
+    RATE_RANK_FLOOR.fgAtt, RATE_RANK_FLOOR.fgMade, RATE_RANK_FLOOR.fg3Att, RATE_RANK_FLOOR.fg3Made,
+    RATE_RANK_FLOOR.tsPossessions,
+    RATE_TINT_FLOOR.fgAtt, RATE_TINT_FLOOR.fg3Att, RATE_TINT_FLOOR.tsPossessions,
+  ])
   const rankByYear = new Map(rankRes.rows.map((r) => [r.season_year, r]))
   const played = seasonRes.rows.map((r) => toSeasonPlayed(r, birthYear, rankByYear.get(r.season_year)))
   return { ...toSummary(row), seasons: withMissedSeasons(played) }

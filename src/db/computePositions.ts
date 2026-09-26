@@ -1,4 +1,5 @@
 import type { Pool } from 'pg'
+import { FULL_SCHEDULE_GAMES, QUALIFYING_GAMES } from './computeLeague'
 import { pctlLadder } from './spread'
 
 // Minimum qualified players for a (season, position) to get a stored average. Below this the
@@ -10,16 +11,16 @@ import { pctlLadder } from './spread'
     per-position rank on /players/:id, so a rank never appears for a bucket the averages omit. */
 export const MIN_QUALIFIED = 8
 
-// The "played enough to count" bar that picks which player-seasons feed the averages. MUST
-// stay equal to computeLeague.ts's SMALL_SAMPLE_FRACTION (and the frontend's) — one concept,
-// three places: it decides the greyed-out seasons in the UI AND who qualifies for both the
-// league and the position averages.
-const SMALL_SAMPLE_FRACTION = 0.25
+// The "played enough to count" bar that picks which player-seasons feed the averages is
+// computeLeague.ts's QUALIFYING_GAMES / FULL_SCHEDULE_GAMES, imported — one concept, one
+// definition: it decides the greyed-out seasons in the UI AND who qualifies for the league
+// averages, the position averages, and the ranks.
 
 // $1 = optional single season year to (re)compute; NULL does every year.
 const DELETE_SQL = `DELETE FROM position_seasons WHERE ($1::int IS NULL OR season_year = $1::int)`
 
-// $1 = optional single season year (NULL = all). $2 = small-sample fraction. $3 = min sample.
+// $1 = optional single season year (NULL = all). $2 = QUALIFYING_GAMES, $3 = FULL_SCHEDULE_GAMES
+// (games_played × $3 >= $2 × slate). $4 = min sample.
 // scheduled_games is read from league_seasons (already computed this run), so this never
 // re-fetches a team schedule from ESPN. The math mirrors computeLeague.ts exactly (rate stats
 // from summed totals, not a mean of per-player rates) so a position average is directly
@@ -27,7 +28,7 @@ const DELETE_SQL = `DELETE FROM position_seasons WHERE ($1::int IS NULL OR seaso
 // The coverage gate (migration 005): a season gets position buckets only if EVERY qualified
 // player that year has a position (league_seasons.qualified_with_position = qualified_players).
 // ESPN has none for most pre-2012 players; a bucket built from whoever happens to be placed
-// would be biased in a way the >= $3 gate can't see. NULL counts (a row not yet recomputed
+// would be biased in a way the >= $4 gate can't see. NULL counts (a row not yet recomputed
 // since the migration) compare as not-equal, so they gate off rather than through.
 const INSERT_SQL = `
 INSERT INTO position_seasons (
@@ -76,10 +77,10 @@ JOIN league_seasons ls ON ls.season_year = ps.season_year
 WHERE ps.season_type = 2
   AND p.position IS NOT NULL
   AND ($1::int IS NULL OR ps.season_year = $1::int)
-  AND ps.games_played >= $2::numeric * ls.scheduled_games
+  AND ps.games_played * $3::int >= $2::int * ls.scheduled_games
   AND ls.qualified_with_position = ls.qualified_players
 GROUP BY ps.season_year, p.position
-HAVING COUNT(*) >= $3::int
+HAVING COUNT(*) >= $4::int
 `
 
 export interface ComputePositionsOptions {
@@ -104,7 +105,7 @@ export async function computePositions(
   try {
     await client.query('BEGIN')
     await client.query(DELETE_SQL, [year ?? null])
-    const result = await client.query(INSERT_SQL, [year ?? null, SMALL_SAMPLE_FRACTION, MIN_QUALIFIED])
+    const result = await client.query(INSERT_SQL, [year ?? null, QUALIFYING_GAMES, FULL_SCHEDULE_GAMES, MIN_QUALIFIED])
     await client.query('COMMIT')
     return result.rowCount ?? 0
   } catch (err) {

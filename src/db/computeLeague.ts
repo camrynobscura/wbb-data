@@ -3,15 +3,26 @@ import { fetchScheduledGames } from '../espn/client'
 import { currentSeason } from '../seasons'
 import { pctlLadder } from './spread'
 
-// Must stay equal to the frontend's SMALL_SAMPLE_FRACTION (wnba-arc/src/lib/deviation.ts):
-// the same "too few games to trust" bar decides both which player-seasons the app greys out
-// AND which players qualify for these league averages. One concept, two repos — keep it paired.
-export const SMALL_SAMPLE_FRACTION = 0.25
+// The "played enough to count" bar. A season qualifies at QUALIFYING_GAMES of a
+// FULL_SCHEDULE_GAMES-game schedule, scaled to that year's real slate: 20 of 44 today, 13 of
+// 28 in 1997, 10 of the 2020 bubble's 22. That is Basketball-Reference's WNBA per-game
+// requirement (20 games) scaled so a short season isn't judged by a long season's bar — chosen
+// 2026-09-25 over the old 25% (11 of 44), which let a handful of games count as a year
+// (DECISIONS). One bar decides BOTH which player-seasons the app greys out AND which qualify
+// for these league averages, the position averages, and every rank — one crowd, so a rank, an
+// average, and a spread always describe the same players. The SQL compares in integers
+// (games_played × FULL >= QUALIFYING × slate), never a float fraction, so no season can land on
+// the wrong side of the line by rounding. Must stay equal to the frontend's pair
+// (wnba-arc/src/lib/deviation.ts QUALIFYING_GAMES / FULL_SCHEDULE_GAMES); computePositions.ts
+// and the API's RANK_SQL import these rather than keeping a copy.
+export const QUALIFYING_GAMES = 20
+export const FULL_SCHEDULE_GAMES = 44
 
 // $1 = a JSON map {season_year: real_slate} we fetched from team schedules (missing seasons
 //      fall back to MAX(games_played) over single-team rows).
-// $2 = the small-sample fraction; a season qualifies at >= $2 of its slate.
-// $3 = optional single season year to (re)compute; NULL recomputes every year. Filtering
+// $2 = QUALIFYING_GAMES, $3 = FULL_SCHEDULE_GAMES: a season qualifies when
+//      games_played × $3 >= $2 × its slate (integer arithmetic on both sides).
+// $4 = optional single season year to (re)compute; NULL recomputes every year. Filtering
 //      player_max scopes the whole chain, since sched/qualified derive from it.
 // Besides the averages, each row records how many player-seasons qualified and how many of
 // those belong to a player with a known position (migration 005). ESPN has no position for
@@ -23,7 +34,7 @@ WITH player_max AS (
   SELECT season_year,
          MAX(games_played) FILTER (WHERE team_id IS NOT NULL) AS pmax
   FROM player_seasons
-  WHERE season_type = 2 AND ($3::int IS NULL OR season_year = $3::int)
+  WHERE season_type = 2 AND ($4::int IS NULL OR season_year = $4::int)
   GROUP BY season_year
 ),
 fetched AS (
@@ -42,7 +53,7 @@ qualified AS (
   JOIN sched s   ON s.season_year = ps.season_year
   JOIN players p ON p.id = ps.player_id
   WHERE ps.season_type = 2
-    AND ps.games_played >= $2::numeric * s.scheduled_games
+    AND ps.games_played * $3::int >= $2::int * s.scheduled_games
 )
 INSERT INTO league_seasons (
   season_year, scheduled_games, qualified_players, qualified_with_position,
@@ -143,7 +154,7 @@ export async function computeLeague(
   // player filter both scale to how much of the season has actually happened (a regular isn't
   // flagged small-sample just because the season is young). The rule — and why "completed"
   // alone is wrong before 2002 — is countRegularSeasonGames in src/espn/schedule.ts. See
-  // wnba-arc deviation.ts (isSmallSample) — the two share SMALL_SAMPLE_FRACTION.
+  // wnba-arc deviation.ts (isSmallSample) — the two share QUALIFYING_GAMES / FULL_SCHEDULE_GAMES.
   const current = currentSeason()
   const slates: Record<number, number> = {}
   for (const y of years) {
@@ -153,7 +164,8 @@ export async function computeLeague(
 
   const result = await pool.query(SQL, [
     JSON.stringify(slates),
-    SMALL_SAMPLE_FRACTION,
+    QUALIFYING_GAMES,
+    FULL_SCHEDULE_GAMES,
     year ?? null,
   ])
   return result.rowCount ?? 0
