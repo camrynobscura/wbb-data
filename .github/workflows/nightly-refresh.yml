@@ -1,19 +1,25 @@
-name: Nightly data refresh
+name: Daily data refresh
 
-# Runs the current-season scrape into Supabase every night (historical seasons never
-# change, so only the in-progress year is refreshed) and pings Discord if a featured
-# player's identity changed. Also runnable on demand via the "Run workflow" button.
+# Runs the current-season scrape into Supabase every morning (historical seasons never
+# change, so only the in-progress year is refreshed) and pings Telegram/Discord if a featured
+# player's identity changed or a team was renamed. Also runnable on demand via the "Run
+# workflow" button. (The file keeps its old name so the Actions run history stays in one place.)
 on:
   schedule:
-    # 10:00 UTC daily (~3am PT / 6am ET) — late West-Coast games and ESPN box scores
-    # have settled by then. Cron is always UTC; adjust if the slate shifts.
-    - cron: '0 10 * * *'
+    # 6:23 AM Eastern daily (3:23 AM Pacific) — late West-Coast games and ESPN box scores
+    # have settled by then. The time zone is explicit (GitHub's default is UTC): at '0 10' UTC
+    # with none, every scheduled run started in the 10 AM EASTERN hour (10:37, 10:59, 10:05 on
+    # 2026-09-24..26 — ~4 h late, cause unknown). This states the intent directly, follows
+    # daylight saving, and sits off the top of the hour ("High load times include the start of
+    # every hour" — GitHub docs). If runs still start near 10 AM Eastern, it's something else.
+    - cron: '23 6 * * *'
+      timezone: 'America/New_York'
   workflow_dispatch: {}
 
 # Never let two refreshes run at once (a slow run overlapping the next tick). Queue
 # the newer one rather than cancelling a scrape mid-write.
 concurrency:
-  group: nightly-refresh
+  group: daily-refresh
   cancel-in-progress: false
 
 jobs:
