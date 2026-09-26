@@ -30,6 +30,7 @@ import {
   recoverSeasons,
 } from '../src/espn/client'
 import { ingestPlayer } from '../src/db/ingest'
+import { seasonTeamEspnIds } from '../src/db/teams'
 import { backfillRoles } from '../src/db/backfillRoles'
 import { computeLeague } from '../src/db/computeLeague'
 import { computePositions } from '../src/db/computePositions'
@@ -127,20 +128,11 @@ async function main(): Promise<void> {
     // season's teams' schedules. Non-fatal — a null here just makes /meta serve the last run's.
     let lastGameDate: string | null = null
     try {
-      // Every team with a regular-season row this year: the season's team, plus each stint's
-      // team for traded players (stints hang off the season row — they carry no year themselves).
-      const { rows: teamRows } = await pool.query<{ team_id: string }>(
-        `SELECT DISTINCT team_id::text AS team_id FROM player_seasons
-          WHERE season_year = $1 AND season_type = 2 AND team_id IS NOT NULL
-         UNION
-         SELECT DISTINCT st.team_id::text FROM player_season_stints st
-           JOIN player_seasons ps ON ps.id = st.season_id
-          WHERE ps.season_year = $1 AND ps.season_type = 2`,
-        [currentYear],
-      )
-      const teamIds = teamRows.map((r) => r.team_id)
-      lastGameDate = await fetchLastGameDate(teamIds, currentYear)
-      console.log(`stats through ${lastGameDate ?? '(unknown)'} (${teamIds.length} team schedules)`)
+      // ESPN's id for every team with a regular-season row this year (seasonTeamEspnIds — ESPN's
+      // ids, not our teams.id; mixing the two is the bug fixed 2026-09-26).
+      const espnTeamIds = await seasonTeamEspnIds(pool, currentYear)
+      lastGameDate = await fetchLastGameDate(espnTeamIds, currentYear)
+      console.log(`stats through ${lastGameDate ?? '(unknown)'} (${espnTeamIds.length} team schedules)`)
     } catch (dateErr) {
       console.error(`last-game-date step failed (non-fatal): ${String(dateErr)}`)
     }

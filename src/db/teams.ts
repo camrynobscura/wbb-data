@@ -26,3 +26,26 @@ export async function getTeamIdByEspn(
   ])
   return res.rows.length ? (res.rows[0] as { id: string }).id : null
 }
+
+/**
+ * ESPN's ids (teams.espn_id) for every team with a regular-season row in a year: the season's team,
+ * plus each stint's team for traded players (stints hang off the season row — they carry no year
+ * themselves). ESPN's ids, NOT our surrogate teams.id: until 2026-09-26 the nightly's "Stats
+ * through" step sent teams.id to ESPN's schedule endpoint, which reached only 7 of the 15 2026
+ * teams (our 17 is the Mystics, ESPN's 17 the Aces; our 26 is a 400) — the date was right only
+ * because one of those 7 played on the last game day.
+ */
+export async function seasonTeamEspnIds(pool: Pool, year: number): Promise<string[]> {
+  const { rows } = await pool.query<{ espn_id: string }>(
+    `SELECT DISTINCT t.espn_id FROM player_seasons ps
+       JOIN teams t ON t.id = ps.team_id
+      WHERE ps.season_year = $1 AND ps.season_type = 2
+     UNION
+     SELECT DISTINCT t.espn_id FROM player_season_stints st
+       JOIN player_seasons ps ON ps.id = st.season_id
+       JOIN teams t ON t.id = st.team_id
+      WHERE ps.season_year = $1 AND ps.season_type = 2`,
+    [year],
+  )
+  return rows.map((r) => r.espn_id)
+}

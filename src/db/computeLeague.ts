@@ -1,5 +1,5 @@
 import type { Pool } from 'pg'
-import { fetchScheduledGames } from '../espn/client'
+import { fetchCompletedGames, fetchTeamGamesPlayed } from '../espn/client'
 import { currentSeason } from '../seasons'
 import { pctlLadder } from './spread'
 
@@ -18,8 +18,9 @@ import { pctlLadder } from './spread'
 export const QUALIFYING_GAMES = 20
 export const FULL_SCHEDULE_GAMES = 44
 
-// $1 = a JSON map {season_year: real_slate} we fetched from team schedules (missing seasons
-//      fall back to MAX(games_played) over single-team rows).
+// $1 = a JSON map {season_year: real_slate} we fetched from ESPN (team statistics for a finished
+//      season, the schedule's completed games for the current one; missing seasons fall back to
+//      MAX(games_played) over single-team rows).
 // $2 = QUALIFYING_GAMES, $3 = FULL_SCHEDULE_GAMES: a season qualifies when
 //      games_played × $3 >= $2 × its slate (integer arithmetic on both sides).
 // $4 = optional single season year to (re)compute; NULL recomputes every year. Filtering
@@ -148,17 +149,18 @@ export async function computeLeague(
   )
   const years = yearsRes.rows.map((r) => r.season_year)
 
-  // Real slate per season from a team schedule (team 6 = LA Sparks, active since 1997). For a
-  // finished season, every regular-season game that was actually played; for the in-progress
-  // current season, the games completed so far, so the small-sample gate and the qualified-
-  // player filter both scale to how much of the season has actually happened (a regular isn't
-  // flagged small-sample just because the season is young). The rule — and why "completed"
-  // alone is wrong before 2002 — is countRegularSeasonGames in src/espn/schedule.ts. See
-  // wnba-arc deviation.ts (isSmallSample) — the two share QUALIFYING_GAMES / FULL_SCHEDULE_GAMES.
+  // Real slate per season from one team (team 6 = LA Sparks, active since 1997). For a finished
+  // season, the games the team played per ESPN's team statistics — not its schedule, which can't
+  // be counted for old seasons (the 2001 schedule lists a game never played; see
+  // countCompletedGames in src/espn/schedule.ts). For the in-progress current season, the games
+  // completed so far, so the small-sample gate and the qualified-player filter both scale to how
+  // much of the season has actually happened (a regular isn't flagged small-sample just because
+  // the season is young). See wnba-arc deviation.ts (isSmallSample) — the two share
+  // QUALIFYING_GAMES / FULL_SCHEDULE_GAMES.
   const current = currentSeason()
   const slates: Record<number, number> = {}
   for (const y of years) {
-    const n = await fetchScheduledGames('6', y, y === current)
+    const n = y === current ? await fetchCompletedGames('6', y) : await fetchTeamGamesPlayed('6', y)
     if (n) slates[y] = n
   }
 
