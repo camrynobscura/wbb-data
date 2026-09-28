@@ -1,68 +1,27 @@
 # wnba-data
 
-The data layer behind **WNBA Arc** — it collects WNBA player histories, computes advanced
-stats from the box score, stores everything in Postgres, and serves it over a small
-read-only API.
+The data service behind **[WNBA Arc](https://github.com/camrynobscura/wnba-arc)**. It ingests every
+WNBA player's season history from ESPN, stores it in Postgres, computes league and position
+averages, spreads and ranks, and serves them through a small read-only Express API.
 
-**Live API:** [`https://wnba-data-api.onrender.com`](https://wnba-data-api.onrender.com) — Express
-on Render's free tier over Postgres on Supabase, kept warm by a 5-minute uptime ping. Hardened with
-`helmet`, per-IP rate limiting, connection-pool timeouts, and strict CORS to the frontend origin.
+**The architecture, schema, ranking rules and daily refresh are written up in the
+[WNBA Arc README](https://github.com/camrynobscura/wnba-arc#architecture).** This page covers the code
+layout and how to run it.
 
-## What it does
+**Live API:** [`https://wnba-data-api.onrender.com`](https://wnba-data-api.onrender.com)
 
-- **Ingests** every player's season history from ESPN's stats data — identity, per-season box-score
-  totals, minutes, and team history — for every player who has appeared since the league's first
-  season (1997), so a season is always compared against its whole league.
-- **Derives** efficiency and role stats from the raw box score: true shooting %, effective
-  FG%, turnover %, 3-point-attempt rate, and free-throw rate (as Postgres *generated columns*,
-  so they can't drift from their inputs), plus usage % and assist % computed from team totals.
-- **Aggregates** per-year league averages and schedule lengths — used downstream as baselines
-  and as the small-sample denominator.
-- **Serves** it through a read-only Express API that returns the frontend's shape.
+## Layout
 
-## Architecture
-
-```
-ESPN JSON  →  scraper / adapter  →  Postgres (Supabase)  →  read-only Express API  →  WNBA Arc
-```
-
-The query and shaping logic is framework-agnostic (plain functions over a `pg` pool), so the
-HTTP layer is a thin wrapper and the database stays a private implementation detail behind the
-API. The API's JSON contract is the only cross-repo boundary.
-
-## Data model
-
-One row per player-season is the core grain. Highlights:
-
-- **Stable identity** — a surrogate primary key plus ESPN's id as an external key. Never keyed
-  on name (last names collide).
-- **Era-accurate team names** — franchise identity is kept separate from naming eras, so a
-  historical season shows the team's name *at the time* (e.g. San Antonio Stars, not Las Vegas
-  Aces) via a year-range join.
-- **Trades** — a canonical season total row, with per-team stints preserved separately.
-- **Missed seasons** are inferred from year gaps at read time, never stored as synthetic rows.
-- **Small-sample seasons** are flagged by games played against that year's schedule.
-- Counting stats are stored as integer season totals (exact); rates and derived stats as
-  `numeric` (never float, to avoid rounding drift).
-
-## API
-
-Read-only, JSON:
-
-| Endpoint | Returns |
+| Path | What's there |
 | --- | --- |
-| `GET /players` | the player list (id, name, team, position, career span) — `?scope=current` (default: anyone with a season in the last 3 years) or `?scope=all` (everyone since 1997) |
-| `GET /players/:id` | one player + full regular-season history, with each season's league and position rank |
-| `GET /league` | per-year league averages, spread and schedule lengths |
-| `GET /positions` | per-year, per-position averages (where every qualified player that year has a known position) |
-| `GET /meta` | data freshness: `statsThrough` (date of the last completed game in the data) and `lastScrapedAt` |
-
-## Stack
-
-- **Node + TypeScript**
-- **Express 5** read API, **raw `pg`** (explicit SQL, no ORM)
-- **Postgres on Supabase**
-- **Vitest** for the derived-stat and parsing unit tests
+| `src/espn/` | The ESPN client (retries with backoff, its own User-Agent) and the parsers, unit-tested |
+| `src/db/` | Ingest and upserts, league and position averages, each team's games per season, the run audit |
+| `src/stats/` | Usage % and assist %, computed from team totals |
+| `src/api/` | The Express server and its SQL queries |
+| `src/notify/` | Change alerts for the daily refresh (Telegram or Discord) |
+| `scripts/` | Command-line entry points for everything below |
+| `migrations/` | Plain SQL, applied in order by `npm run migrate` |
+| `.github/workflows/nightly-refresh.yml` | The daily refresh (GitHub Actions) |
 
 ## Running locally
 
@@ -70,34 +29,37 @@ Requires Node 20+ and a Postgres database.
 
 ```bash
 npm install
-cp .env.example .env                 # set DATABASE_URL to your Postgres connection string
+cp .env.example .env                  # set DATABASE_URL to your Postgres connection string
 
-npm run migrate                        # create / upgrade the schema (migrations/)
-npx tsx scripts/scrape.ts --all        # discover + ingest every player since 1997 (no flag: the last 3 seasons)
-npx tsx scripts/backfill-roles.ts      # 2nd pass: minutes + usage% / assist% (--missing-only after adding players)
-npx tsx scripts/seed-team-eras.ts      # era-accurate team names
-npx tsx scripts/compute-league.ts      # per-year league averages
-npx tsx scripts/compute-positions.ts   # per-year, per-position averages
+npm run migrate                       # create or upgrade the schema
+npx tsx scripts/scrape.ts --all       # every player since 1997 (no flag: the last 3 seasons)
+npx tsx scripts/backfill-roles.ts     # minutes, usage % and assist %
+npx tsx scripts/seed-team-eras.ts     # era-accurate team names
+npx tsx scripts/compute-league.ts     # league averages, from season lengths
+npx tsx scripts/fill-team-games.ts    # each team's games per season
+npx tsx scripts/compute-league.ts     # again, now counting each team's own games
+npx tsx scripts/compute-positions.ts  # position averages
 
-npm run serve                        # read API on http://localhost:3001
+npm run serve                         # the API on http://localhost:3001
 ```
 
-Other scripts:
+The daily job is `npx tsx scripts/refresh-current.ts`: the current season only, since past seasons
+never change. Every write is an idempotent upsert, so any script can be rerun safely.
 
 ```bash
-npm test           # unit tests (vitest)
-npm run typecheck  # tsc --noEmit
-npm run serve:watch
+npm test            # unit tests (58)
+npm run typecheck   # tsc --noEmit
+npm run serve:watch # the API, restarting on change
 ```
 
-## Data source & scope
+## Environment
 
-Player stats come from ESPN's public stats endpoints. Efficiency stats are computed from
-box-score totals rather than trusting precomputed values, so they stay internally consistent.
-ESPN has no position on record for most players from before 2012, so per-position averages
-and ranks exist only for seasons where every qualified player is placed (2012 on); league
-averages and ranks cover every season.
-A few stats are intentionally left out because they can't be sourced reliably: rebound
-percentages need opponent data ESPN doesn't publish, and all-in-one impact metrics (PER, Win
-Shares, BPM, VORP) can't be derived from a box score. Scraped data is treated as a runtime
-artifact and kept out of version control.
+| Variable | Used by | |
+| --- | --- | --- |
+| `DATABASE_URL` | everything | Required. A Postgres connection string. |
+| `TELEGRAM_URL`, `DISCORD_WEBHOOK_URL` | the daily refresh | Optional. Where change alerts go; without either, alerts are only logged. |
+| `CORS_ORIGIN` | the API | Production only: the frontend's origin. Unset, any localhost port is allowed. |
+| `PORT` | the API | Defaults to 3001. |
+
+Scraped data is a runtime artifact and is never committed. Stats come from ESPN's public stats
+endpoints.
