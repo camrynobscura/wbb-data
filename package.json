@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Private data layer for the wnba-arc visualizer — ESPN adapter + Postgres (Supabase) + derived stats.",
   "engines": {
-    "node": ">=20"
+    "node": "26.x"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

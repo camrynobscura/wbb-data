@@ -26,7 +26,7 @@ layout and how to run it.
 
 ## Running locally
 
-Requires Node 20+ and a Postgres database.
+Requires Node 26 and a Postgres database.
 
 ```bash
 npm install

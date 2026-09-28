@@ -46,7 +46,7 @@ jobs:
 
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0 (runs on Node 24)
         with:
-          node-version: '22' # current LTS; satisfies package.json engines (>=20)
+          node-version: '26' # the same major as package.json engines (26.x), which Render runs too
           cache: npm
 
       - run: npm ci
