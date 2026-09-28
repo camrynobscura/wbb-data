@@ -12,6 +12,7 @@ import rateLimit from 'express-rate-limit'
 import { Pool } from 'pg'
 import { getPlayer, getPlayers, getLeague, getPositions, getMeta } from './queries'
 import { dbConfig } from '../db/connect'
+import { isPlayerId } from './playerId'
 
 // Pool tuning: cap connections well under Supabase's pooler limit, and give up on a
 // stuck connection or a hung query instead of leaking one forever.
@@ -79,9 +80,9 @@ app.get('/players', async (req, res) => {
 
 app.get('/players/:id', async (req, res) => {
   const id = req.params.id
-  // id is a bigint column; a non-numeric id would make Postgres throw a cast error (→ 500).
+  // id is a bigint column; a non-numeric or out-of-range id would make Postgres throw (→ 500).
   // Treat a malformed id as "no such player" rather than a server error.
-  if (!/^\d+$/.test(id)) {
+  if (!isPlayerId(id)) {
     res.status(404).json({ error: 'player not found' })
     return
   }
@@ -109,6 +110,13 @@ app.get('/meta', async (req, res) => {
 })
 
 app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
+  // Express marks the client's own mistakes with a 4xx status — e.g. 400 for a malformed
+  // %-escape in the path (`/players/%ZZ`). Answer those as such, without logging them as crashes.
+  const status = (err as { status?: unknown } | null)?.status
+  if (typeof status === 'number' && status >= 400 && status < 500) {
+    res.status(status).json({ error: 'bad request' })
+    return
+  }
   console.error(err)
   res.status(500).json({ error: 'internal error' })
 })

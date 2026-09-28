@@ -48,7 +48,7 @@ The daily job is `npx tsx scripts/refresh-current.ts`: the current season only, 
 never change. Every write is an idempotent upsert, so any script can be rerun safely.
 
 ```bash
-npm test            # unit tests (69)
+npm test            # unit tests (72)
 npm run typecheck   # tsc --noEmit
 npm run serve:watch # the API, restarting on change
 ```
