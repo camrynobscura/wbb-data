@@ -119,15 +119,17 @@ export async function discoverPlayerIds(fromYear: number, toYear: number): Promi
 
 // ─── Per-player fetch (Pass B) ────────────────────────────────────────────────
 
+// Ids (athlete / team) are encodeURIComponent'd into every ESPN path: they come from ESPN's responses and
+// our DB and are always digits today (so the URLs are unchanged), but an odd one can't reshape the request.
 const CORE_ATHLETE =
   'https://sports.core.api.espn.com/v2/sports/basketball/leagues/wnba/athletes'
 const statsUrl = (id: string, seasonType: number) =>
-  `https://site.web.api.espn.com/apis/common/v3/sports/basketball/wnba/athletes/${id}/stats?seasontype=${seasonType}`
+  `https://site.web.api.espn.com/apis/common/v3/sports/basketball/wnba/athletes/${encodeURIComponent(id)}/stats?seasontype=${seasonType}`
 
 /** Fetch + parse one player's bio. */
 export async function fetchBio(id: string): Promise<PlayerBio> {
   const athlete = await fetchJson<Parameters<typeof parseBio>[0]>(
-    `${CORE_ATHLETE}/${id}`,
+    `${CORE_ATHLETE}/${encodeURIComponent(id)}`,
   )
   return parseBio(athlete)
 }
@@ -196,7 +198,7 @@ export async function fetchTeamTotals(
   seasonType: number,
 ): Promise<TeamTotals | null> {
   const data = await fetchJsonOrNull<CoreStatsResponse>(
-    coreSeasonUrl(`${year}/types/${seasonType}/teams/${teamId}/statistics`),
+    coreSeasonUrl(`${year}/types/${seasonType}/teams/${encodeURIComponent(teamId)}/statistics`),
   )
   if (!data) return null
   const s = flattenCoreStats(data)
@@ -221,7 +223,7 @@ export async function fetchTeamTotals(
  */
 export async function fetchSchedule(espnTeamId: string, year: number): Promise<ScheduleEvent[] | null> {
   const data = await fetchJsonOrNull<{ events?: ScheduleEvent[] }>(
-    `https://site.api.espn.com/apis/site/v2/sports/basketball/wnba/teams/${espnTeamId}/schedule?season=${year}`,
+    `https://site.api.espn.com/apis/site/v2/sports/basketball/wnba/teams/${encodeURIComponent(espnTeamId)}/schedule?season=${year}`,
   )
   return data ? (data.events ?? []) : null
 }
@@ -267,7 +269,7 @@ export async function fetchTeamGames(espnTeamId: string, year: number): Promise<
   const corrected = TEAM_GAMES_CORRECTIONS[`${espnTeamId}|${year}`]
   if (corrected !== undefined) return { games: corrected, source: 'correction' }
   const data = await fetchJsonOrNull<CoreStatsResponse>(
-    coreSeasonUrl(`${year}/types/2/teams/${espnTeamId}/statistics`),
+    coreSeasonUrl(`${year}/types/2/teams/${encodeURIComponent(espnTeamId)}/statistics`),
   )
   if (!data) return null
   const games = flattenCoreStats(data).gamesPlayed
@@ -283,7 +285,7 @@ export async function fetchTeamName(
     displayName?: string
     name?: string
     abbreviation?: string
-  }>(coreSeasonUrl(`${year}/teams/${teamId}`))
+  }>(coreSeasonUrl(`${year}/teams/${encodeURIComponent(teamId)}`))
   const name = data?.displayName ?? data?.name
   if (!data || !name || !data.abbreviation) return null
   return { name, abbreviation: data.abbreviation }
@@ -334,7 +336,7 @@ async function isRealTeam(teamId: string, year: number): Promise<boolean> {
   const key = `${year}|${teamId}`
   if (!realTeamCache.has(key)) {
     const data = await fetchJsonOrNull<Parameters<typeof isAllStarTeam>[0]>(
-      coreSeasonUrl(`${year}/teams/${teamId}`),
+      coreSeasonUrl(`${year}/teams/${encodeURIComponent(teamId)}`),
     )
     realTeamCache.set(key, data !== null && !isAllStarTeam(data))
   }
@@ -355,14 +357,14 @@ export async function fetchSeasonFromCore(
   seasonType: number,
 ): Promise<SeasonRecord | null> {
   const stats = await fetchJsonOrNull<CoreStatsResponse>(
-    coreSeasonUrl(`${year}/types/${seasonType}/athletes/${espnId}/statistics`),
+    coreSeasonUrl(`${year}/types/${seasonType}/athletes/${encodeURIComponent(espnId)}/statistics`),
   )
   if (!stats) return null
   const parsed = parseCoreSeasonBox(flattenCoreStats(stats))
   if (!parsed) return null
 
   const log = await fetchJsonOrNull<EventLogResponse>(
-    coreSeasonUrl(`${year}/athletes/${espnId}/eventlog?limit=1`),
+    coreSeasonUrl(`${year}/athletes/${encodeURIComponent(espnId)}/eventlog?limit=1`),
   )
   const teamIds: string[] = []
   for (const id of Object.keys(log?.teams ?? {})) {
@@ -408,7 +410,7 @@ export async function fetchPlayerMinutes(
   seasonType: number,
 ): Promise<number | null> {
   const data = await fetchJsonOrNull<CoreStatsResponse>(
-    coreSeasonUrl(`${year}/types/${seasonType}/athletes/${espnId}/statistics`),
+    coreSeasonUrl(`${year}/types/${seasonType}/athletes/${encodeURIComponent(espnId)}/statistics`),
   )
   if (!data) return null
   return flattenCoreStats(data).minutes ?? null

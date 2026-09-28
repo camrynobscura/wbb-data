@@ -1,6 +1,6 @@
 /**
  * Ingest one player end-to-end: fetch bio + career stats (regular + playoffs),
- * parse, write to Neon, and read back what landed.
+ * parse, write to the database, and read back what landed.
  * Run with:  npx tsx scripts/ingest-one.ts
  */
 process.loadEnvFile()
@@ -41,13 +41,15 @@ async function main(): Promise<void> {
   const pool = new Pool(dbConfig())
   await ingestPlayer(pool, bio, seasons, currentSeasonYear)
 
-  const playerFilter = `player_id = (SELECT id FROM players WHERE espn_id = '${ATHLETE_ID}')`
+  // The id goes in as a query parameter ($1), never pasted into the SQL text.
+  const playerFilter = 'player_id = (SELECT id FROM players WHERE espn_id = $1)'
 
   const seasonsBack = await pool.query(
     `SELECT season_year, season_type, team_id, games_played, points, rebounds,
             assists, ts_pct, is_total_row, is_current_season
      FROM player_seasons WHERE ${playerFilter}
      ORDER BY season_year, season_type`,
+    [ATHLETE_ID],
   )
   console.log(`\n${bio.name} — ${seasonsBack.rows.length} season rows:`)
   console.table(seasonsBack.rows)
@@ -58,6 +60,7 @@ async function main(): Promise<void> {
      JOIN player_seasons ps ON ps.id = st.season_id
      WHERE ps.${playerFilter}
      ORDER BY ps.season_year, st.team_id`,
+    [ATHLETE_ID],
   )
   console.log('stints:')
   console.table(stintsBack.rows)
