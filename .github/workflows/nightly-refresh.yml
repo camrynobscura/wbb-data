@@ -26,14 +26,25 @@ concurrency:
   group: daily-refresh
   cancel-in-progress: false
 
+# The job only reads this repo; the data goes to Supabase with its own secret. So the job's
+# GitHub token can read the code and nothing else (the default scope is a repo setting).
+permissions:
+  contents: read
+
 jobs:
   refresh:
     runs-on: ubuntu-latest
     timeout-minutes: 15 # the full run is ~2 min; this only guards against a hang
     steps:
-      - uses: actions/checkout@v5 # v5 runs on Node 24 (v4 → the Node 20 deprecation warning)
+      # Actions are pinned to full commit SHAs, not tags: a tag can be moved to other code, a
+      # commit can't. The comment names the release; the pins are what v5 pointed to on 2026-09-28.
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0 (v5 runs on Node 24)
+        with:
+          # Don't leave the job's token in .git/config for later steps (npm ci runs packages'
+          # install scripts); nothing after checkout talks to GitHub.
+          persist-credentials: false
 
-      - uses: actions/setup-node@v5 # v5 runs on Node 24
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0 (runs on Node 24)
         with:
           node-version: '22' # current LTS; satisfies package.json engines (>=20)
           cache: npm
