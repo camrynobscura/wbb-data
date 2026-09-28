@@ -37,7 +37,7 @@ describe('formatAlert', () => {
     const msg = formatAlert([change], ['17999'])!
     expect(msg).toContain('Caitlin Clark (1) — team: Indiana Fever → Las Vegas Aces')
     expect(msg).toContain('17999')
-    expect(msg).not.toContain('**') // plain text — reads the same in Telegram and Discord
+    expect(msg).not.toContain('**') // plain text — Telegram shows it as-is
   })
 
   it('lists a renamed / relocated team as ours → ESPN, and alone is enough to send', () => {

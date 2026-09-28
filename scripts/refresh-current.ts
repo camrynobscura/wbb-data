@@ -139,7 +139,7 @@ async function main(): Promise<void> {
 
     // Heads-up notification (must never fail the run — the data refresh is done).
     // Diff the featured players' identity, flag un-named new teams and renamed ones; ping
-    // Discord if there's anything to act on. No webhook configured → just log.
+    // Telegram if there's anything to act on. No TELEGRAM_URL → just log.
     try {
       const after = await snapshotIdentities(pool, FEATURED_ESPN_IDS)
       const changes = diffIdentities(before, after)
@@ -155,12 +155,8 @@ async function main(): Promise<void> {
         console.log('no featured-player or team changes to report')
       } else {
         console.log(alert)
-        const via = await sendAlert(alert)
-        console.log(
-          via === 'none'
-            ? '(no TELEGRAM_URL or DISCORD_WEBHOOK_URL set — skipped sending)'
-            : `→ notification sent via ${via}`,
-        )
+        const sent = await sendAlert(alert)
+        console.log(sent ? '→ notification sent via Telegram' : '(no TELEGRAM_URL set — skipped sending)')
       }
     } catch (notifyErr) {
       console.error(`notification step failed (non-fatal): ${String(notifyErr)}`)

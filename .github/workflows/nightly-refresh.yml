@@ -1,7 +1,7 @@
 name: Daily data refresh
 
 # Runs the current-season scrape into Supabase every morning (historical seasons never
-# change, so only the in-progress year is refreshed) and pings Telegram/Discord if a featured
+# change, so only the in-progress year is refreshed) and pings Telegram if a featured
 # player's identity changed or a team was renamed. Also runnable on demand via the "Run
 # workflow" button. (The file keeps its old name so the Actions run history stays in one place.)
 on:
@@ -45,7 +45,5 @@ jobs:
         env:
           # Required. Supabase Session-pooler connection string (repo secret).
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          # Change notifications — set whichever you use (Telegram wins if both set).
-          # If neither is set, the notification step just logs and skips.
+          # Change notifications. If it isn't set, the notification step just logs and skips.
           TELEGRAM_URL: ${{ secrets.TELEGRAM_URL }}
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}

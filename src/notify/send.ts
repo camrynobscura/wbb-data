@@ -1,8 +1,8 @@
 import type { IdentityChange, TeamRename } from './watch'
 
 /**
- * Build the alert body from what the refresh found. Plain text (no markdown), so it
- * reads cleanly in both Telegram and Discord. Returns null when there's nothing to
+ * Build the alert body from what the refresh found. Plain text (no markdown) — Telegram
+ * shows it as-is (sendTelegram sets no parse_mode). Returns null when there's nothing to
  * report, so the caller can skip sending entirely.
  */
 export function formatAlert(
@@ -76,36 +76,13 @@ export async function sendTelegram(tgramUrl: string, text: string): Promise<void
 }
 
 /**
- * POST a plain message to a Discord webhook. A webhook URL is all Discord needs —
- * no bot or token. Throws on a non-2xx.
+ * Send an alert to Telegram if TELEGRAM_URL is set; otherwise send nothing. Returns
+ * whether it was sent so the caller can log it. The caller is responsible for catching
+ * errors — a failed notification must never fail the scrape.
  */
-export async function postDiscord(webhookUrl: string, text: string): Promise<void> {
-  const res = await fetch(webhookUrl, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ content: text.slice(0, 2000) }), // Discord caps content at 2000
-  })
-  if (!res.ok) {
-    throw new Error(`Discord webhook → ${res.status} ${res.statusText}`)
-  }
-}
-
-/**
- * Send an alert via whichever channel is configured, in priority order:
- * TELEGRAM_URL, then DISCORD_WEBHOOK_URL, else nothing. Returns which channel was
- * used so the caller can log it. The caller is responsible for catching errors — a
- * failed notification must never fail the scrape.
- */
-export async function sendAlert(text: string): Promise<'telegram' | 'discord' | 'none'> {
+export async function sendAlert(text: string): Promise<boolean> {
   const tgram = process.env.TELEGRAM_URL
-  const discord = process.env.DISCORD_WEBHOOK_URL
-  if (tgram) {
-    await sendTelegram(tgram, text)
-    return 'telegram'
-  }
-  if (discord) {
-    await postDiscord(discord, text)
-    return 'discord'
-  }
-  return 'none'
+  if (!tgram) return false
+  await sendTelegram(tgram, text)
+  return true
 }

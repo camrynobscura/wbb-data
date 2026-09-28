@@ -18,7 +18,7 @@ layout and how to run it.
 | `src/db/` | Ingest and upserts, league and position averages, each team's games per season, the run audit |
 | `src/stats/` | Usage % and assist %, computed from team totals |
 | `src/api/` | The Express server and its SQL queries |
-| `src/notify/` | Change alerts for the daily refresh (Telegram or Discord) |
+| `src/notify/` | Change alerts for the daily refresh (Telegram) |
 | `scripts/` | Command-line entry points for everything below |
 | `migrations/` | Plain SQL, applied in order by `npm run migrate` |
 | `.github/workflows/nightly-refresh.yml` | The daily refresh (GitHub Actions) |
@@ -57,7 +57,7 @@ npm run serve:watch # the API, restarting on change
 | Variable | Used by | |
 | --- | --- | --- |
 | `DATABASE_URL` | everything | Required. A Postgres connection string. |
-| `TELEGRAM_URL`, `DISCORD_WEBHOOK_URL` | the daily refresh | Optional. Where change alerts go; without either, alerts are only logged. |
+| `TELEGRAM_URL` | the daily refresh | Optional. Where change alerts go; without it, alerts are only logged. |
 | `CORS_ORIGIN` | the API | Production only: the frontend's origin. Unset, any localhost port is allowed. |
 | `PORT` | the API | Defaults to 3001. |
 
