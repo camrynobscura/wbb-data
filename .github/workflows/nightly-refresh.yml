@@ -6,14 +6,17 @@ name: Daily data refresh
 # workflow" button. (The file keeps its old name so the Actions run history stays in one place.)
 on:
   schedule:
-    # 4:23 AM Eastern daily (1:23 AM Pacific). Set this early because every scheduled run so far
-    # has started 4–5 h after its set time, cause unknown: 6:00 AM Eastern started 10:37, 10:59,
-    # 10:05 AM (2026-09-24..26) and 6:23 AM Eastern started 11:11 AM (09-27). Off the top of the
-    # hour ("High load times include the start of every hour" — GitHub docs); the time zone is
-    # explicit (GitHub's default is UTC) and follows daylight saving. Unmeasured until May: how
-    # long ESPN takes to add a finished game to the season totals — a run that starts on time,
-    # ~3 h after the last West-Coast game, could show "Stats through" a day ahead of the numbers.
-    - cron: '23 4 * * *'
+    # 1:13 AM Eastern daily (10:13 PM Pacific, the day before) — a last try at an earlier start before
+    # moving the trigger off GitHub (2026-09-28). Every scheduled run so far has started hours after
+    # its set time, and the lag isn't a fixed offset: 6:00 AM Eastern started 10:37, 10:59, 10:05 AM
+    # (2026-09-24..26), 6:23 AM started 11:11 AM (09-27), 4:23 AM started 12:47 PM (09-28). GitHub
+    # docs: a schedule "can be delayed during periods of high loads" and "some queued jobs may be
+    # dropped". Off the top of the hour ("High load times include the start of every hour"); the
+    # time zone is explicit (GitHub's default is UTC) and follows daylight saving. Unmeasured until
+    # May: how long ESPN takes to add a finished game to the season totals — a run that starts on
+    # time, ~45 min after the last West-Coast game, could show "Stats through" a day ahead of the
+    # numbers.
+    - cron: '13 1 * * *'
       timezone: 'America/New_York'
   workflow_dispatch: {}
 
