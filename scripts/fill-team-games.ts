@@ -21,13 +21,14 @@ try {
 }
 
 import { Pool } from 'pg'
+import { dbConfig } from '../src/db/connect'
 import { seasonTeams } from '../src/db/teams'
 import { fillFinishedTeamGames, refreshCurrentTeamGames } from '../src/db/teamGames'
 import { currentSeason } from '../src/seasons'
 
 async function main(): Promise<void> {
   const year = process.argv[2] ? Number(process.argv[2]) : undefined
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL })
+  const pool = new Pool(dbConfig())
   const current = currentSeason()
 
   const teams = await seasonTeams(pool, year)

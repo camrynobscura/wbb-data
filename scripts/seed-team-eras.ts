@@ -26,6 +26,7 @@ try {
 }
 
 import { Pool } from 'pg'
+import { dbConfig } from '../src/db/connect'
 import { fetchTeamName } from '../src/espn/client'
 
 /** ESPN's name for a (team, year) → the era's real name, where ESPN's record is off. */
@@ -50,7 +51,7 @@ interface Era {
 }
 
 async function main(): Promise<void> {
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL })
+  const pool = new Pool(dbConfig())
   const teams = (await pool.query('SELECT id, espn_id FROM teams ORDER BY id')).rows
 
   // The league's latest season on record. A franchise without data in it is defunct.

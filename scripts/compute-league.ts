@@ -16,11 +16,12 @@ try {
 }
 
 import { Pool } from 'pg'
+import { dbConfig } from '../src/db/connect'
 import { computeLeague } from '../src/db/computeLeague'
 
 async function main(): Promise<void> {
   const year = process.argv[2] ? Number(process.argv[2]) : undefined
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL })
+  const pool = new Pool(dbConfig())
 
   const count = await computeLeague(pool, { year })
   console.log(`✅ league_seasons upserted: ${count} seasons`)

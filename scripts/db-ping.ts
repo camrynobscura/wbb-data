@@ -16,13 +16,14 @@ process.loadEnvFile()
 // `pg` exports a `Client` (one single connection). For a throwaway ping that's
 // all we need; later, real code will use a connection Pool instead.
 import { Client } from 'pg'
+import { dbConfig } from '../src/db/connect'
 
 async function main(): Promise<void> {
-  // The connection string carries host, user, password, and database name.
-  // `!` tells TypeScript "trust me, this is set" (loadEnvFile just filled it).
-  const client = new Client({ connectionString: process.env.DATABASE_URL! })
+  // The connection string carries host, user, password, and database name; dbConfig adds the
+  // encryption settings (src/db/connect.ts) and throws if DATABASE_URL isn't set.
+  const client = new Client(dbConfig())
 
-  // Open the TCP + TLS connection and authenticate.
+  // Open the TCP + TLS connection (TLS for Supabase, via dbConfig) and authenticate.
   await client.connect()
 
   // `query` sends SQL over the wire and resolves to a result. `now()` is the

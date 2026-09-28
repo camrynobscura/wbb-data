@@ -22,6 +22,7 @@ try {
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { Pool } from 'pg'
+import { dbConfig } from '../src/db/connect'
 import {
   discoverAllAppearances,
   discoverCurrentAppearances,
@@ -65,7 +66,7 @@ async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2))
   const currentYear = currentSeason()
 
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL })
+  const pool = new Pool(dbConfig())
   const runId = await startScrapeRun(pool)
 
   let done = 0

@@ -15,12 +15,13 @@ layout and how to run it.
 | Path | What's there |
 | --- | --- |
 | `src/espn/` | The ESPN client (retries with backoff, its own User-Agent) and the parsers, unit-tested |
-| `src/db/` | Ingest and upserts, league and position averages, each team's games per season, the run audit |
+| `src/db/` | The database connection (encrypted and certificate-checked for Supabase), ingest and upserts, league and position averages, each team's games per season, the run audit |
 | `src/stats/` | Usage % and assist %, computed from team totals |
 | `src/api/` | The Express server and its SQL queries |
 | `src/notify/` | Change alerts for the daily refresh (Telegram) |
 | `scripts/` | Command-line entry points for everything below |
 | `migrations/` | Plain SQL, applied in order by `npm run migrate` |
+| `certs/` | Supabase's root certificate, which the connection checks the database server against |
 | `.github/workflows/nightly-refresh.yml` | The daily refresh (GitHub Actions) |
 
 ## Running locally
@@ -47,7 +48,7 @@ The daily job is `npx tsx scripts/refresh-current.ts`: the current season only, 
 never change. Every write is an idempotent upsert, so any script can be rerun safely.
 
 ```bash
-npm test            # unit tests (58)
+npm test            # unit tests (69)
 npm run typecheck   # tsc --noEmit
 npm run serve:watch # the API, restarting on change
 ```
@@ -56,7 +57,7 @@ npm run serve:watch # the API, restarting on change
 
 | Variable | Used by | |
 | --- | --- | --- |
-| `DATABASE_URL` | everything | Required. A Postgres connection string. |
+| `DATABASE_URL` | everything | Required. A Postgres connection string. For Supabase, leave out `sslmode` and other SSL settings: `src/db/connect.ts` encrypts and checks the connection, and refuses to start if the string sets its own. |
 | `TELEGRAM_URL` | the daily refresh | Optional. Where change alerts go; without it, alerts are only logged. |
 | `CORS_ORIGIN` | the API | Production only: the frontend's origin. Unset, any localhost port is allowed. |
 | `PORT` | the API | Defaults to 3001. |

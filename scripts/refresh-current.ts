@@ -22,6 +22,7 @@ try {
 }
 
 import { Pool } from 'pg'
+import { dbConfig } from '../src/db/connect'
 import {
   discoverCurrentAppearances,
   fetchBio,
@@ -53,7 +54,7 @@ async function main(): Promise<void> {
   const limitArg = process.argv[2] ? Number(process.argv[2]) : undefined
   const currentYear = new Date().getFullYear()
 
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL })
+  const pool = new Pool(dbConfig())
   const runId = await startScrapeRun(pool)
 
   let done = 0

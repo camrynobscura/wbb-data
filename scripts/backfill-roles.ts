@@ -17,6 +17,7 @@ try {
 }
 
 import { Pool } from 'pg'
+import { dbConfig } from '../src/db/connect'
 import { backfillRoles } from '../src/db/backfillRoles'
 
 async function main(): Promise<void> {
@@ -24,7 +25,7 @@ async function main(): Promise<void> {
   const missingOnly = argv.includes('--missing-only')
   const yearArg = argv.find((arg) => /^\d+$/.test(arg))
   const year = yearArg ? Number(yearArg) : undefined
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL })
+  const pool = new Pool(dbConfig())
 
   console.log(
     `backfilling ${year ? `${year}` : 'all'} seasons${missingOnly ? ' still missing minutes' : ''}...`,

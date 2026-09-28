@@ -17,11 +17,12 @@ try {
 }
 
 import { Pool } from 'pg'
+import { dbConfig } from '../src/db/connect'
 import { computePositions } from '../src/db/computePositions'
 
 async function main(): Promise<void> {
   const year = process.argv[2] ? Number(process.argv[2]) : undefined
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL })
+  const pool = new Pool(dbConfig())
 
   const count = await computePositions(pool, { year })
   console.log(`✅ position_seasons written: ${count} rows`)

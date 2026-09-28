@@ -23,11 +23,12 @@ try {
 
 import { readdirSync, readFileSync } from 'node:fs'
 import { Client } from 'pg'
+import { dbConfig } from '../src/db/connect'
 
 const MIGRATIONS_DIR = new URL('../migrations/', import.meta.url)
 
 async function main(): Promise<void> {
-  const client = new Client({ connectionString: process.env.DATABASE_URL })
+  const client = new Client(dbConfig())
   await client.connect()
 
   try {

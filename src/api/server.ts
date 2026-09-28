@@ -11,11 +11,12 @@ import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
 import { Pool } from 'pg'
 import { getPlayer, getPlayers, getLeague, getPositions, getMeta } from './queries'
+import { dbConfig } from '../db/connect'
 
 // Pool tuning: cap connections well under Supabase's pooler limit, and give up on a
 // stuck connection or a hung query instead of leaking one forever.
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  ...dbConfig(), // encrypted and certificate-checked for Supabase (src/db/connect.ts)
   max: 5,
   idleTimeoutMillis: 30_000,
   connectionTimeoutMillis: 10_000,

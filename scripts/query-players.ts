@@ -9,9 +9,10 @@
 process.loadEnvFile()
 
 import { Client } from 'pg'
+import { dbConfig } from '../src/db/connect'
 
 async function main(): Promise<void> {
-  const client = new Client({ connectionString: process.env.DATABASE_URL! })
+  const client = new Client(dbConfig())
   await client.connect()
 
   // The exact same SQL you ran in the browser.

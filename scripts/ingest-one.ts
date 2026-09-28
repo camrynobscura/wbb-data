@@ -6,6 +6,7 @@
 process.loadEnvFile()
 
 import { Pool } from 'pg'
+import { dbConfig } from '../src/db/connect'
 import { parseBio, extractRawRows, groupSeasons } from '../src/espn/parse'
 import { ingestPlayer } from '../src/db/ingest'
 
@@ -37,7 +38,7 @@ async function main(): Promise<void> {
     ...groupSeasons(extractRawRows(post), 3),
   ]
 
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL })
+  const pool = new Pool(dbConfig())
   await ingestPlayer(pool, bio, seasons, currentSeasonYear)
 
   const playerFilter = `player_id = (SELECT id FROM players WHERE espn_id = '${ATHLETE_ID}')`
