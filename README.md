@@ -23,6 +23,7 @@ layout and how to run it.
 | `migrations/` | Plain SQL, applied in order by `npm run migrate` |
 | `certs/` | Supabase's root certificate, which the connection checks the database server against |
 | `.github/workflows/nightly-refresh.yml` | The daily refresh (GitHub Actions) |
+| `.github/workflows/ci.yml` | Type check, formatting and tests on every push |
 
 ## Running locally
 
@@ -48,9 +49,11 @@ The daily job is `npx tsx scripts/refresh-current.ts`: the current season only, 
 never change. Every write is an idempotent upsert, so any script can be rerun safely.
 
 ```bash
-npm test            # unit tests (72)
-npm run typecheck   # tsc --noEmit
-npm run serve:watch # the API, restarting on change
+npm test              # unit tests (72)
+npm run typecheck     # tsc --noEmit
+npm run format        # format with Prettier
+npm run format:check  # check formatting (CI runs this)
+npm run serve:watch   # the API, restarting on change
 ```
 
 ## Environment
