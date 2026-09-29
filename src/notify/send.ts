@@ -17,9 +17,7 @@ export function formatAlert(
   if (changes.length > 0) {
     lines.push('', 'Featured player changes (update featured.ts):')
     for (const c of changes) {
-      const parts = c.fields.map(
-        (f) => `${f.field}: ${f.from ?? '—'} → ${f.to ?? '—'}`,
-      )
+      const parts = c.fields.map((f) => `${f.field}: ${f.from ?? '—'} → ${f.to ?? '—'}`)
       lines.push(`• ${c.name} (${c.espnId}) — ${parts.join('; ')}`)
     }
   }
@@ -53,9 +51,7 @@ export function parseTgram(tgramUrl: string): { botToken: string; chatId: string
   const rest = tgramUrl.replace(/^tgram:\/\//i, '').replace(/\/+$/, '')
   const [botToken, chatId] = rest.split('/')
   if (!botToken || !chatId) {
-    throw new Error(
-      'TELEGRAM_URL must look like tgram://<bot_token>/<chat_id> (chat id required)',
-    )
+    throw new Error('TELEGRAM_URL must look like tgram://<bot_token>/<chat_id> (chat id required)')
   }
   return { botToken, chatId }
 }

@@ -115,18 +115,31 @@ describe('groupSeasons', () => {
   // Tiny factories so the fixtures stay short — only the fields a test checks matter.
   const box = (points: number): BoxScore => ({
     points,
-    fgMade: 0, fgAtt: 0, fg3Made: 0, fg3Att: 0, ftMade: 0, ftAtt: 0,
-    oreb: 0, dreb: 0, assists: 0, steals: 0, blocks: 0, turnovers: 0, fouls: 0,
+    fgMade: 0,
+    fgAtt: 0,
+    fg3Made: 0,
+    fg3Att: 0,
+    ftMade: 0,
+    ftAtt: 0,
+    oreb: 0,
+    dreb: 0,
+    assists: 0,
+    steals: 0,
+    blocks: 0,
+    turnovers: 0,
+    fouls: 0,
   })
   const misc = (): MiscStats => ({
-    doubleDoubles: 0, tripleDoubles: 0, technicalFouls: 0,
-    flagrantFouls: 0, disqualifications: 0, ejections: 0,
+    doubleDoubles: 0,
+    tripleDoubles: 0,
+    technicalFouls: 0,
+    flagrantFouls: 0,
+    disqualifications: 0,
+    ejections: 0,
   })
 
   it('single-team season → one record, no stints', () => {
-    const rows: RawSeasonRow[] = [
-      { year: 2023, teamId: 17, gamesPlayed: 40, box: box(500), misc: misc() },
-    ]
+    const rows: RawSeasonRow[] = [{ year: 2023, teamId: 17, gamesPlayed: 40, box: box(500), misc: misc() }]
     const result = groupSeasons(rows, 2)
 
     expect(result).toHaveLength(1)
@@ -194,10 +207,23 @@ describe('parseCoreSeasonBox', () => {
   // Rebekkah Brunson 2007 (Sacramento), as the core per-season endpoint returns it — a season
   // the career /stats endpoint doesn't have at all.
   const brunson2007 = {
-    gamesPlayed: 33, points: 378, fieldGoalsMade: 141, fieldGoalsAttempted: 298,
-    threePointFieldGoalsMade: 0, threePointFieldGoalsAttempted: 4, freeThrowsMade: 96,
-    freeThrowsAttempted: 140, offensiveRebounds: 130, defensiveRebounds: 165, assists: 24,
-    steals: 44, blocks: 31, turnovers: 58, fouls: 78, minutes: 932, doubleDouble: 10,
+    gamesPlayed: 33,
+    points: 378,
+    fieldGoalsMade: 141,
+    fieldGoalsAttempted: 298,
+    threePointFieldGoalsMade: 0,
+    threePointFieldGoalsAttempted: 4,
+    freeThrowsMade: 96,
+    freeThrowsAttempted: 140,
+    offensiveRebounds: 130,
+    defensiveRebounds: 165,
+    assists: 24,
+    steals: 44,
+    blocks: 31,
+    turnovers: 58,
+    fouls: 78,
+    minutes: 932,
+    doubleDouble: 10,
   }
 
   it('maps the flat core map to the box, defaulting absent misc counts to zero', () => {
@@ -224,7 +250,14 @@ describe('isAllStarTeam', () => {
     expect(isAllStarTeam({ slug: 'west' })).toBe(true) // /stats row, old All-Star game
     expect(isAllStarTeam({ abbreviation: 'WEST', name: 'WEST' })).toBe(true) // team 99 on the core endpoint
     expect(isAllStarTeam({ slug: 'all-stars' })).toBe(true)
-    expect(isAllStarTeam({ displayName: 'Sacramento Monarchs', abbreviation: 'SAC', slug: 'sacramento-monarchs', isAllStar: false })).toBe(false)
+    expect(
+      isAllStarTeam({
+        displayName: 'Sacramento Monarchs',
+        abbreviation: 'SAC',
+        slug: 'sacramento-monarchs',
+        isAllStar: false,
+      }),
+    ).toBe(false)
     expect(isAllStarTeam({ displayName: 'Seattle Storm', abbreviation: 'SEA' })).toBe(false)
   })
 })
@@ -252,16 +285,30 @@ describe('extractRawRows', () => {
   // Minimal category builders. totals needs all 15 keys parseTotalsBox reads;
   // averages needs only gamesPlayed; misc needs the 6 kept keys.
   const TOTALS_NAMES = [
-    'points', 'offensiveRebounds', 'defensiveRebounds', 'totalRebounds',
-    'assists', 'steals', 'blocks', 'turnovers',
-    'fieldGoalsMade-fieldGoalsAttempted', 'fieldGoalPct',
-    'threePointFieldGoalsMade-threePointFieldGoalsAttempted', 'threePointFieldGoalPct',
-    'freeThrowsMade-freeThrowsAttempted', 'freeThrowPct', 'fouls',
+    'points',
+    'offensiveRebounds',
+    'defensiveRebounds',
+    'totalRebounds',
+    'assists',
+    'steals',
+    'blocks',
+    'turnovers',
+    'fieldGoalsMade-fieldGoalsAttempted',
+    'fieldGoalPct',
+    'threePointFieldGoalsMade-threePointFieldGoalsAttempted',
+    'threePointFieldGoalPct',
+    'freeThrowsMade-freeThrowsAttempted',
+    'freeThrowPct',
+    'fouls',
   ]
   const AVG_NAMES = ['gamesPlayed']
   const MISC_NAMES = [
-    'doubleDouble', 'tripleDouble', 'technicalFouls',
-    'flagrantFouls', 'disqualifications', 'ejections',
+    'doubleDouble',
+    'tripleDouble',
+    'technicalFouls',
+    'flagrantFouls',
+    'disqualifications',
+    'ejections',
   ]
 
   const row = (year: number, teamId: number | null, stats: string[], teamSlug?: string) => ({
@@ -271,7 +318,12 @@ describe('extractRawRows', () => {
     stats,
   })
   const totalsRow = (year: number, teamId: number | null, points: number, slug?: string) =>
-    row(year, teamId, [String(points), '0', '0', '0', '0', '0', '0', '0', '0-0', '0', '0-0', '0', '0-0', '0', '0'], slug)
+    row(
+      year,
+      teamId,
+      [String(points), '0', '0', '0', '0', '0', '0', '0', '0-0', '0', '0-0', '0', '0-0', '0', '0'],
+      slug,
+    )
   const avgRow = (year: number, teamId: number | null, gp: number, slug?: string) =>
     row(year, teamId, [String(gp)], slug)
   const miscRow = (year: number, teamId: number | null, dd: number) =>
@@ -327,7 +379,9 @@ describe('parseBio', () => {
         jersey: '10',
         active: true,
         position: { abbreviation: 'G' },
-        team: { $ref: 'http://sports.core.api.espn.com/v2/sports/basketball/leagues/wnba/seasons/2024/teams/17?lang=en' },
+        team: {
+          $ref: 'http://sports.core.api.espn.com/v2/sports/basketball/leagues/wnba/seasons/2024/teams/17?lang=en',
+        },
         headshot: { href: 'https://a.espncdn.com/i/headshots/wnba/players/full/3065570.png' },
         draft: { year: 2017, round: 1, selection: 1 },
       }),

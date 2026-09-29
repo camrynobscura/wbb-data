@@ -8,11 +8,7 @@ import { upsertReturningId } from './upsert'
  * scrape refreshes the bio in place instead of duplicating. draft_* are filled
  * when ESPN has them (2018+ draftees), null otherwise.
  */
-export async function upsertPlayer(
-  pool: Pool,
-  bio: PlayerBio,
-  currentTeamId: string | null,
-): Promise<string> {
+export async function upsertPlayer(pool: Pool, bio: PlayerBio, currentTeamId: string | null): Promise<string> {
   return upsertReturningId(pool, 'players', ['espn_id'], {
     espn_id: bio.espnId,
     name: bio.name,

@@ -2,9 +2,7 @@ import type { Pool } from 'pg'
 
 /** Open a scrape_runs row (status 'running'), returning its id. */
 export async function startScrapeRun(pool: Pool): Promise<string> {
-  const res = await pool.query(
-    `INSERT INTO scrape_runs (status) VALUES ('running') RETURNING id`,
-  )
+  const res = await pool.query(`INSERT INTO scrape_runs (status) VALUES ('running') RETURNING id`)
   return (res.rows[0] as { id: string }).id
 }
 

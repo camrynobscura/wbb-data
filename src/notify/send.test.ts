@@ -41,10 +41,20 @@ describe('formatAlert', () => {
   })
 
   it('lists a renamed / relocated team as ours → ESPN, and alone is enough to send', () => {
-    const msg = formatAlert([], [], [
-      { espnId: '18', espnName: 'Houston Comets', espnAbbreviation: 'HOU', eraName: 'Connecticut Sun', eraAbbreviation: 'CON' },
-      { espnId: '4', espnName: 'Houston Comets', espnAbbreviation: 'HOU', eraName: null, eraAbbreviation: null },
-    ])!
+    const msg = formatAlert(
+      [],
+      [],
+      [
+        {
+          espnId: '18',
+          espnName: 'Houston Comets',
+          espnAbbreviation: 'HOU',
+          eraName: 'Connecticut Sun',
+          eraAbbreviation: 'CON',
+        },
+        { espnId: '4', espnName: 'Houston Comets', espnAbbreviation: 'HOU', eraName: null, eraAbbreviation: null },
+      ],
+    )!
     expect(msg).toContain('team 18: Connecticut Sun (CON) → Houston Comets (HOU)')
     expect(msg).toContain('team 4: no open era → Houston Comets (HOU)')
     expect(formatAlert([], [], [])).toBeNull()

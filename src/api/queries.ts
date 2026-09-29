@@ -25,14 +25,11 @@ import type {
 
 // ── number helpers ───────────────────────────────────────────────────────────
 /** Per-game value, 1 decimal (matches the frontend's precision). */
-const perGame = (total: number, gp: number): number =>
-  Math.round((total / gp) * 10) / 10
+const perGame = (total: number, gp: number): number => Math.round((total / gp) * 10) / 10
 /** made/att as a decimal to 3 places; null when there were no attempts. */
-const ratio = (made: number, att: number): number | null =>
-  att > 0 ? Math.round((made / att) * 1000) / 1000 : null
+const ratio = (made: number, att: number): number | null => (att > 0 ? Math.round((made / att) * 1000) / 1000 : null)
 /** A pg numeric (string | null) → number to 3 places, or null. */
-const num3 = (v: unknown): number | null =>
-  v == null ? null : Math.round(Number(v) * 1000) / 1000
+const num3 = (v: unknown): number | null => (v == null ? null : Math.round(Number(v) * 1000) / 1000)
 
 // ── player summary (shared by list + detail) ─────────────────────────────────
 interface SummaryRow {
@@ -312,15 +309,27 @@ function toSeasonPlayed(r: SeasonRow, birthYear: number | null, rk: RankRow | un
   const rank =
     rk && rk.r_pts != null
       ? {
-          pts: Number(rk.r_pts), reb: Number(rk.r_reb), ast: Number(rk.r_ast), stl: Number(rk.r_stl), blk: Number(rk.r_blk),
-          fgp: opt(rk.r_fgp), tpp: opt(rk.r_tpp), tsPct: opt(rk.r_ts),
+          pts: Number(rk.r_pts),
+          reb: Number(rk.r_reb),
+          ast: Number(rk.r_ast),
+          stl: Number(rk.r_stl),
+          blk: Number(rk.r_blk),
+          fgp: opt(rk.r_fgp),
+          tpp: opt(rk.r_tpp),
+          tsPct: opt(rk.r_ts),
         }
       : null
   const posRank =
     rk && rk.p_pts != null
       ? {
-          pts: Number(rk.p_pts), reb: Number(rk.p_reb), ast: Number(rk.p_ast), stl: Number(rk.p_stl), blk: Number(rk.p_blk),
-          fgp: opt(rk.p_fgp), tpp: opt(rk.p_tpp), tsPct: opt(rk.p_ts),
+          pts: Number(rk.p_pts),
+          reb: Number(rk.p_reb),
+          ast: Number(rk.p_ast),
+          stl: Number(rk.p_stl),
+          blk: Number(rk.p_blk),
+          fgp: opt(rk.p_fgp),
+          tpp: opt(rk.p_tpp),
+          tsPct: opt(rk.p_ts),
         }
       : null
   return {
@@ -334,7 +343,10 @@ function toSeasonPlayed(r: SeasonRow, birthYear: number | null, rk: RankRow | un
     ratePool: rk ? { fgp: Number(rk.pool_fgp), tpp: Number(rk.pool_tpp), tsPct: Number(rk.pool_ts) } : null,
     posPool: rk && rk.pos_pool != null ? Number(rk.pos_pool) : null,
     posRank,
-    posRatePool: rk && rk.pos_pool != null ? { fgp: opt(rk.pos_pool_fgp), tpp: opt(rk.pos_pool_tpp), tsPct: opt(rk.pos_pool_ts) } : null,
+    posRatePool:
+      rk && rk.pos_pool != null
+        ? { fgp: opt(rk.pos_pool_fgp), tpp: opt(rk.pos_pool_tpp), tsPct: opt(rk.pos_pool_ts) }
+        : null,
     min: r.minutes === null ? null : perGame(Number(r.minutes), gp),
     pts: perGame(r.points, gp),
     reb: perGame(r.rebounds, gp),
@@ -401,10 +413,18 @@ export async function getPlayer(pool: Pool, id: string): Promise<PlayerDetail | 
     [id],
   )
   const rankRes = await pool.query<RankRow>(RANK_SQL, [
-    id, QUALIFYING_GAMES, FULL_SCHEDULE_GAMES, MIN_QUALIFIED,
-    RATE_RANK_FLOOR.fgAtt, RATE_RANK_FLOOR.fgMade, RATE_RANK_FLOOR.fg3Att, RATE_RANK_FLOOR.fg3Made,
+    id,
+    QUALIFYING_GAMES,
+    FULL_SCHEDULE_GAMES,
+    MIN_QUALIFIED,
+    RATE_RANK_FLOOR.fgAtt,
+    RATE_RANK_FLOOR.fgMade,
+    RATE_RANK_FLOOR.fg3Att,
+    RATE_RANK_FLOOR.fg3Made,
     RATE_RANK_FLOOR.tsPossessions,
-    RATE_TINT_FLOOR.fgAtt, RATE_TINT_FLOOR.fg3Att, RATE_TINT_FLOOR.tsPossessions,
+    RATE_TINT_FLOOR.fgAtt,
+    RATE_TINT_FLOOR.fg3Att,
+    RATE_TINT_FLOOR.tsPossessions,
   ])
   const rankByYear = new Map(rankRes.rows.map((r) => [r.season_year, r]))
   const played = seasonRes.rows.map((r) => toSeasonPlayed(r, birthYear, rankByYear.get(r.season_year)))

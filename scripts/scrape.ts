@@ -91,9 +91,7 @@ async function main(): Promise<void> {
       console.log(`retrying ${ids.length} ids from ${args.idsFile}`)
     } else {
       ids = [...appearances.keys()]
-      const span = args.all
-        ? `every season since ${FIRST_WNBA_SEASON}`
-        : `the last ${ROSTER_WINDOW_YEARS} seasons`
+      const span = args.all ? `every season since ${FIRST_WNBA_SEASON}` : `the last ${ROSTER_WINDOW_YEARS} seasons`
       console.log(`discovered ${ids.length} players across ${span}`)
     }
     if (args.limit) ids = ids.slice(0, args.limit)
@@ -101,10 +99,7 @@ async function main(): Promise<void> {
 
     await mapWithConcurrency(ids, CONCURRENCY, async (id) => {
       try {
-        const [bio, fromStats] = await Promise.all([
-          fetchBio(id),
-          fetchSeasons(id),
-        ])
+        const [bio, fromStats] = await Promise.all([fetchBio(id), fetchSeasons(id)])
         // Seasons the lists say she played but /stats didn't return (see fetchSeasonFromCore).
         const recovered = await recoverSeasons(id, fromStats, appearances.get(id) ?? [])
         recoveredSeasons += recovered.length

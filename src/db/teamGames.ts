@@ -35,9 +35,11 @@ export interface FinishedFill {
  */
 export async function fillFinishedTeamGames(pool: Pool, teams: SeasonTeam[]): Promise<FinishedFill> {
   const totals = new Map(
-    (await pool.query<{ season_year: number; scheduled_games: number }>(
-      `SELECT season_year, scheduled_games FROM league_seasons`,
-    )).rows.map((r) => [r.season_year, r.scheduled_games]),
+    (
+      await pool.query<{ season_year: number; scheduled_games: number }>(
+        `SELECT season_year, scheduled_games FROM league_seasons`,
+      )
+    ).rows.map((r) => [r.season_year, r.scheduled_games]),
   )
   const out: FinishedFill = { bySource: {}, missing: [] }
   for (const team of teams) {

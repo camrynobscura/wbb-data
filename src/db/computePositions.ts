@@ -98,10 +98,7 @@ export interface ComputePositionsOptions {
  * upsert would leave a stale row when a bucket drops below the threshold. Does not close the
  * pool. Returns the number of position-year rows written.
  */
-export async function computePositions(
-  pool: Pool,
-  { year }: ComputePositionsOptions = {},
-): Promise<number> {
+export async function computePositions(pool: Pool, { year }: ComputePositionsOptions = {}): Promise<number> {
   const client = await pool.connect()
   try {
     await client.query('BEGIN')

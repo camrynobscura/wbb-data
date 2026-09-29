@@ -40,12 +40,16 @@ async function main(): Promise<void> {
     const f = await fillFinishedTeamGames(pool, finished)
     console.log('finished seasons written, by source:', f.bySource)
     if (f.missing.length > 0) {
-      console.error(`⚠️  no count for ${f.missing.length}: ${f.missing.map((t) => `${t.year} espn ${t.espnId}`).join(', ')}`)
+      console.error(
+        `⚠️  no count for ${f.missing.length}: ${f.missing.map((t) => `${t.year} espn ${t.espnId}`).join(', ')}`,
+      )
     }
   }
   if (inProgress.length > 0) {
     const c = await refreshCurrentTeamGames(pool, inProgress)
-    console.log(`${current} (in progress) written from schedules: ${c.written}; failed: ${c.failed.join(', ') || 'none'}`)
+    console.log(
+      `${current} (in progress) written from schedules: ${c.written}; failed: ${c.failed.join(', ') || 'none'}`,
+    )
   }
 
   // Every team-season that differs from its season's total — the few that matter.

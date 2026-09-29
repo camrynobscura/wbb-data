@@ -57,8 +57,7 @@ const fetchJsonOrNotFound = <T>(url: string): Promise<T | null> => request<T>(ur
 
 // ─── Discovery (Pass A) ───────────────────────────────────────────────────────
 
-const BYATHLETE =
-  'https://site.web.api.espn.com/apis/common/v3/sports/basketball/wnba/statistics/byathlete'
+const BYATHLETE = 'https://site.web.api.espn.com/apis/common/v3/sports/basketball/wnba/statistics/byathlete'
 // 2 = regular season, 3 = playoffs — both, so a player who appeared ONLY in the playoffs
 // (injured all regular season, back for the postseason) still makes the universe.
 const SEASON_TYPES = [2, 3]
@@ -89,8 +88,7 @@ export async function discoverAppearances(fromYear: number, toYear: number): Pro
       const url = `${BYATHLETE}?season=${year}&seasontype=${seasonType}&limit=1000&isqualified=false`
       const data = await fetchJson<ByAthleteResponse>(url)
       // Games played sits in the `general` category, positionally under its `names`.
-      const gpIndex =
-        data.categories?.find((c) => c.name === 'general')?.names.indexOf('gamesPlayed') ?? -1
+      const gpIndex = data.categories?.find((c) => c.name === 'general')?.names.indexOf('gamesPlayed') ?? -1
       for (const entry of data.athletes ?? []) {
         const values = entry.categories?.find((c) => c.name === 'general')?.values
         const gamesPlayed = gpIndex >= 0 ? Number(values?.[gpIndex] ?? 0) : 0
@@ -120,16 +118,13 @@ export async function discoverPlayerIds(fromYear: number, toYear: number): Promi
 
 // Ids (athlete / team) are encodeURIComponent'd into every ESPN path: they come from ESPN's responses and
 // our DB and are always digits today (so the URLs are unchanged), but an odd one can't reshape the request.
-const CORE_ATHLETE =
-  'https://sports.core.api.espn.com/v2/sports/basketball/leagues/wnba/athletes'
+const CORE_ATHLETE = 'https://sports.core.api.espn.com/v2/sports/basketball/leagues/wnba/athletes'
 const statsUrl = (id: string, seasonType: number) =>
   `https://site.web.api.espn.com/apis/common/v3/sports/basketball/wnba/athletes/${encodeURIComponent(id)}/stats?seasontype=${seasonType}`
 
 /** Fetch + parse one player's bio. */
 export async function fetchBio(id: string): Promise<PlayerBio> {
-  const athlete = await fetchJson<Parameters<typeof parseBio>[0]>(
-    `${CORE_ATHLETE}/${encodeURIComponent(id)}`,
-  )
+  const athlete = await fetchJson<Parameters<typeof parseBio>[0]>(`${CORE_ATHLETE}/${encodeURIComponent(id)}`)
   return parseBio(athlete)
 }
 
@@ -145,10 +140,7 @@ export async function fetchSeasons(id: string): Promise<SeasonRecord[]> {
     fetchJsonOrNotFound<StatsResponse>(statsUrl(id, 2)),
     fetchJsonOrNotFound<StatsResponse>(statsUrl(id, 3)),
   ])
-  return [
-    ...(reg ? groupSeasons(extractRawRows(reg), 2) : []),
-    ...(post ? groupSeasons(extractRawRows(post), 3) : []),
-  ]
+  return [...(reg ? groupSeasons(extractRawRows(reg), 2) : []), ...(post ? groupSeasons(extractRawRows(post), 3) : [])]
 }
 
 // ─── Per-season totals (2nd pass: minutes + role rates) ───────────────────────
@@ -191,11 +183,7 @@ export interface TeamTotals {
 }
 
 /** Team season totals for role-rate denominators (null if the team has no such season). */
-export async function fetchTeamTotals(
-  teamId: string,
-  year: number,
-  seasonType: number,
-): Promise<TeamTotals | null> {
+export async function fetchTeamTotals(teamId: string, year: number, seasonType: number): Promise<TeamTotals | null> {
   const data = await fetchJsonOrNull<CoreStatsResponse>(
     coreSeasonUrl(`${year}/types/${seasonType}/teams/${encodeURIComponent(teamId)}/statistics`),
   )
@@ -208,8 +196,12 @@ export async function fetchTeamTotals(
   const fgMade = s.fieldGoalsMade
   const games = s.gamesPlayed
   if (
-    fga === undefined || fta === undefined || tov === undefined ||
-    assists === undefined || fgMade === undefined || games === undefined
+    fga === undefined ||
+    fta === undefined ||
+    tov === undefined ||
+    assists === undefined ||
+    fgMade === undefined ||
+    games === undefined
   ) {
     return null
   }
@@ -403,11 +395,7 @@ export async function recoverSeasons(
 }
 
 /** A player's exact total minutes for one season (null if unavailable). */
-export async function fetchPlayerMinutes(
-  espnId: string,
-  year: number,
-  seasonType: number,
-): Promise<number | null> {
+export async function fetchPlayerMinutes(espnId: string, year: number, seasonType: number): Promise<number | null> {
   const data = await fetchJsonOrNull<CoreStatsResponse>(
     coreSeasonUrl(`${year}/types/${seasonType}/athletes/${encodeURIComponent(espnId)}/statistics`),
   )

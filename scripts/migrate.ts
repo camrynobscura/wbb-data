@@ -40,9 +40,7 @@ async function main(): Promise<void> {
       )
     `)
 
-    const { rows } = await client.query<{ version: string }>(
-      'SELECT version FROM schema_migrations',
-    )
+    const { rows } = await client.query<{ version: string }>('SELECT version FROM schema_migrations')
     const applied = new Set(rows.map((r) => r.version))
 
     // 2. All migration files, in filename order.

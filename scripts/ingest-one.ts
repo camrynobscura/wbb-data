@@ -20,23 +20,14 @@ async function main(): Promise<void> {
 
   // Bio from the core athlete endpoint.
   const athlete = (await (
-    await fetch(
-      `https://sports.core.api.espn.com/v2/sports/basketball/leagues/wnba/athletes/${ATHLETE_ID}`,
-    )
+    await fetch(`https://sports.core.api.espn.com/v2/sports/basketball/leagues/wnba/athletes/${ATHLETE_ID}`)
   ).json()) as Parameters<typeof parseBio>[0]
   const bio = parseBio(athlete)
 
   // Career stats: regular season (2) + playoffs (3).
-  const reg = (await (await fetch(statsUrl(2))).json()) as Parameters<
-    typeof extractRawRows
-  >[0]
-  const post = (await (await fetch(statsUrl(3))).json()) as Parameters<
-    typeof extractRawRows
-  >[0]
-  const seasons = [
-    ...groupSeasons(extractRawRows(reg), 2),
-    ...groupSeasons(extractRawRows(post), 3),
-  ]
+  const reg = (await (await fetch(statsUrl(2))).json()) as Parameters<typeof extractRawRows>[0]
+  const post = (await (await fetch(statsUrl(3))).json()) as Parameters<typeof extractRawRows>[0]
+  const seasons = [...groupSeasons(extractRawRows(reg), 2), ...groupSeasons(extractRawRows(post), 3)]
 
   const pool = new Pool(dbConfig())
   await ingestPlayer(pool, bio, seasons, currentSeasonYear)

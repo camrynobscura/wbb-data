@@ -1,9 +1,5 @@
 import type { Pool } from 'pg'
-import {
-  fetchTeamTotals,
-  fetchPlayerMinutes,
-  type TeamTotals,
-} from '../espn/client'
+import { fetchTeamTotals, fetchPlayerMinutes, type TeamTotals } from '../espn/client'
 import { usageRate, assistRate } from '../stats/roleRates'
 import { mapWithConcurrency } from '../util/concurrency'
 
@@ -74,21 +70,13 @@ export async function backfillRoles(
   let rolesFilled = 0
 
   await mapWithConcurrency(rows, CONCURRENCY, async (row) => {
-    const minutes = await fetchPlayerMinutes(
-      row.player_espn,
-      row.season_year,
-      row.season_type,
-    )
+    const minutes = await fetchPlayerMinutes(row.player_espn, row.season_year, row.season_type)
 
     let usg: number | null = null
     let ast: number | null = null
 
     if (!row.is_total_row && row.team_espn && minutes) {
-      const team = await getTeamTotals(
-        row.team_espn,
-        row.season_year,
-        row.season_type,
-      )
+      const team = await getTeamTotals(row.team_espn, row.season_year, row.season_type)
       if (team) {
         const teamMinutes = team.games * 200
         usg = usageRate({

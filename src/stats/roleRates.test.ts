@@ -19,8 +19,14 @@ describe('usageRate', () => {
   it('returns null when the player has 0 minutes', () => {
     expect(
       usageRate({
-        fga: 0, fta: 0, tov: 0, minutes: 0,
-        teamFga: 2724, teamFta: 733, teamTov: 432, teamMinutes: 8000,
+        fga: 0,
+        fta: 0,
+        tov: 0,
+        minutes: 0,
+        teamFga: 2724,
+        teamFta: 733,
+        teamTov: 432,
+        teamMinutes: 8000,
       }),
     ).toBeNull()
   })
@@ -42,7 +48,11 @@ describe('assistRate', () => {
   it('returns null when the denominator is 0', () => {
     expect(
       assistRate({
-        assists: 10, fgMade: 100, minutes: 800, teamFgMade: 200, teamMinutes: 8000,
+        assists: 10,
+        fgMade: 100,
+        minutes: 800,
+        teamFgMade: 200,
+        teamMinutes: 8000,
       }),
     ).toBeNull() // onCourt 0.5 * 200 - 100 = 0
   })

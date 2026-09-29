@@ -31,8 +31,7 @@ export async function ingestPlayer(
   const playerId = await upsertPlayer(pool, bio, null)
 
   for (const season of seasons) {
-    const teamId =
-      season.teamId === null ? null : await resolveTeam(season.teamId)
+    const teamId = season.teamId === null ? null : await resolveTeam(season.teamId)
     const isCurrent = season.year === currentSeasonYear
 
     const seasonId = await upsertSeason(pool, playerId, teamId, isCurrent, season)
@@ -54,10 +53,10 @@ export async function ingestPlayer(
   if (bio.active && bio.currentTeamEspnId) {
     const currentTeamId = await getTeamIdByEspn(pool, bio.currentTeamEspnId)
     if (currentTeamId) {
-      await pool.query(
-        `UPDATE players SET current_team_id = $2, updated_at = now() WHERE id = $1`,
-        [playerId, currentTeamId],
-      )
+      await pool.query(`UPDATE players SET current_team_id = $2, updated_at = now() WHERE id = $1`, [
+        playerId,
+        currentTeamId,
+      ])
     }
   }
 }

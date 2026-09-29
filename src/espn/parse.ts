@@ -21,14 +21,9 @@ export function splitMakeAttempt(raw: string): {
  * ESPN aligns a category's `stats[]` values positionally to its `names[]` keys. Zipped into a name → value
  * lookup, stats are read by name rather than by index, which survives ESPN reordering its columns.
  */
-export function zipStats(
-  names: string[],
-  stats: string[],
-): Record<string, string> {
+export function zipStats(names: string[], stats: string[]): Record<string, string> {
   if (names.length !== stats.length) {
-    throw new Error(
-      `names (${names.length}) and stats (${stats.length}) length mismatch`,
-    )
+    throw new Error(`names (${names.length}) and stats (${stats.length}) length mismatch`)
   }
 
   const lookup: Record<string, string> = {}
@@ -79,9 +74,7 @@ export function parseTotalsBox(names: string[], stats: string[]): BoxScore {
   const lookup = zipStats(names, stats)
 
   const fg = splitMakeAttempt(readStat(lookup, 'fieldGoalsMade-fieldGoalsAttempted'))
-  const fg3 = splitMakeAttempt(
-    readStat(lookup, 'threePointFieldGoalsMade-threePointFieldGoalsAttempted'),
-  )
+  const fg3 = splitMakeAttempt(readStat(lookup, 'threePointFieldGoalsMade-threePointFieldGoalsAttempted'))
   const ft = splitMakeAttempt(readStat(lookup, 'freeThrowsMade-freeThrowsAttempted'))
 
   return {
@@ -346,9 +339,7 @@ export function isAllStarTeam(team: {
   const labels = [team.slug, team.abbreviation, team.name, team.displayName].filter(
     (s): s is string => typeof s === 'string',
   )
-  return labels.some(
-    (s) => /^(west|east)$/i.test(s) || /all[- ]?stars?/i.test(s) || /^team\s/i.test(s),
-  )
+  return labels.some((s) => /^(west|east)$/i.test(s) || /all[- ]?stars?/i.test(s) || /^team\s/i.test(s))
 }
 
 /** Misc counts default to zero — ESPN omits the row (or whole category) when
@@ -363,8 +354,7 @@ const ZERO_MISC: MiscStats = {
 }
 
 // A row's identity within one season type: (year, teamId). teamId null = TOTAL.
-const rowKey = (year: number, teamId: number | null) =>
-  `${year}|${teamId ?? 'total'}`
+const rowKey = (year: number, teamId: number | null) => `${year}|${teamId ?? 'total'}`
 
 /** Build a (year, teamId) → row lookup for a category's statistics. */
 function indexByRowKey(category: EspnCategory): Map<string, EspnStatRow> {
@@ -394,9 +384,7 @@ export function extractRawRows(response: EspnStatsResponse): RawSeasonRow[] {
 
   const teams = response.teams ?? {}
   const averagesByKey = indexByRowKey(averages)
-  const miscByKey = miscCategory
-    ? indexByRowKey(miscCategory)
-    : new Map<string, EspnStatRow>()
+  const miscByKey = miscCategory ? indexByRowKey(miscCategory) : new Map<string, EspnStatRow>()
 
   const rows: RawSeasonRow[] = []
   for (const tRow of totals.statistics) {
@@ -424,10 +412,7 @@ export function extractRawRows(response: EspnStatsResponse): RawSeasonRow[] {
       teamId,
       gamesPlayed: parseGamesPlayed(averages.names, avgRow.stats),
       box: parseTotalsBox(totals.names, tRow.stats),
-      misc:
-        miscRow && miscCategory
-          ? parseMisc(miscCategory.names, miscRow.stats)
-          : ZERO_MISC,
+      misc: miscRow && miscCategory ? parseMisc(miscCategory.names, miscRow.stats) : ZERO_MISC,
     })
   }
   return rows
@@ -449,10 +434,7 @@ function sumFields<T extends object>(first: T, rest: T[]): T {
  * exists, it's a traded year: the TOTAL is canonical and the per-team rows become stints. Otherwise the
  * single team row is canonical, with no stints.
  */
-export function groupSeasons(
-  rows: RawSeasonRow[],
-  seasonType: number,
-): SeasonRecord[] {
+export function groupSeasons(rows: RawSeasonRow[], seasonType: number): SeasonRecord[] {
   const byYear = new Map<number, RawSeasonRow[]>()
   for (const row of rows) {
     const group = byYear.get(row.year) ?? []
@@ -495,8 +477,14 @@ export function groupSeasons(
         teamId: null,
         isTotalRow: true,
         gamesPlayed: teamRows.reduce((n, r) => n + r.gamesPlayed, 0),
-        box: sumFields(first.box, rest.map((r) => r.box)),
-        misc: sumFields(first.misc, rest.map((r) => r.misc)),
+        box: sumFields(
+          first.box,
+          rest.map((r) => r.box),
+        ),
+        misc: sumFields(
+          first.misc,
+          rest.map((r) => r.misc),
+        ),
         stints: teamRows.map((r) => ({
           teamId: r.teamId as number,
           gamesPlayed: r.gamesPlayed,

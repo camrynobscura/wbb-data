@@ -20,9 +20,7 @@ export async function upsertReturningId(
   const placeholders = columns.map((_, i) => `$${i + 1}`)
 
   const setClauses = [
-    ...columns
-      .filter((col) => !conflictColumns.includes(col))
-      .map((col) => `${col} = EXCLUDED.${col}`),
+    ...columns.filter((col) => !conflictColumns.includes(col)).map((col) => `${col} = EXCLUDED.${col}`),
     'updated_at = now()',
   ]
 

@@ -47,10 +47,7 @@ export interface IdentityChange {
  * Read the current DB identity (name, position, era-correct current team) for the
  * given ESPN ids. Returned as a map keyed by espnId for easy before/after diffing.
  */
-export async function snapshotIdentities(
-  pool: Pool,
-  espnIds: string[],
-): Promise<Map<string, Identity>> {
+export async function snapshotIdentities(pool: Pool, espnIds: string[]): Promise<Map<string, Identity>> {
   const { rows } = await pool.query(
     `SELECT p.espn_id, p.name, p.position, pct.team_name
        FROM players p
@@ -75,18 +72,14 @@ export async function snapshotIdentities(
  * position, or team changed. A player missing from `before` (e.g. just added to
  * the watch list, or first ever ingest) is skipped — there's no "from" to compare.
  */
-export function diffIdentities(
-  before: Map<string, Identity>,
-  after: Map<string, Identity>,
-): IdentityChange[] {
+export function diffIdentities(before: Map<string, Identity>, after: Map<string, Identity>): IdentityChange[] {
   const changes: IdentityChange[] = []
   for (const [espnId, now] of after) {
     const was = before.get(espnId)
     if (!was) continue
     const fields: IdentityChange['fields'] = []
     if (was.name !== now.name) fields.push({ field: 'name', from: was.name, to: now.name })
-    if (was.position !== now.position)
-      fields.push({ field: 'position', from: was.position, to: now.position })
+    if (was.position !== now.position) fields.push({ field: 'position', from: was.position, to: now.position })
     if (was.team !== now.team) fields.push({ field: 'team', from: was.team, to: now.team })
     if (fields.length > 0) changes.push({ espnId, name: now.name, fields })
   }

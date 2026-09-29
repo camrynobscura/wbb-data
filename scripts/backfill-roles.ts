@@ -27,9 +27,7 @@ async function main(): Promise<void> {
   const year = yearArg ? Number(yearArg) : undefined
   const pool = new Pool(dbConfig())
 
-  console.log(
-    `backfilling ${year ? `${year}` : 'all'} seasons${missingOnly ? ' still missing minutes' : ''}...`,
-  )
+  console.log(`backfilling ${year ? `${year}` : 'all'} seasons${missingOnly ? ' still missing minutes' : ''}...`)
   const { seasons, rolesFilled } = await backfillRoles(pool, { year, missingOnly })
   console.log(`✅ backfill done: ${seasons} seasons, ${rolesFilled} with role rates`)
 

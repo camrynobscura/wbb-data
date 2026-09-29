@@ -62,13 +62,21 @@ describe('diffTeamNames', () => {
   })
 
   it('is silent when every current team matches its open era', () => {
-    expect(diffTeamNames([espn({}), espn({ espnId: '17', name: 'Las Vegas Aces', abbreviation: 'LV' })], eras)).toEqual([])
+    expect(diffTeamNames([espn({}), espn({ espnId: '17', name: 'Las Vegas Aces', abbreviation: 'LV' })], eras)).toEqual(
+      [],
+    )
   })
 
   it('flags a relocation that kept the franchise id (the Sun → Houston case)', () => {
     const out = diffTeamNames([espn({ name: 'Houston Comets', abbreviation: 'HOU' })], eras)
     expect(out).toEqual([
-      { espnId: '18', espnName: 'Houston Comets', espnAbbreviation: 'HOU', eraName: 'Connecticut Sun', eraAbbreviation: 'CON' },
+      {
+        espnId: '18',
+        espnName: 'Houston Comets',
+        espnAbbreviation: 'HOU',
+        eraName: 'Connecticut Sun',
+        eraAbbreviation: 'CON',
+      },
     ])
   })
 
@@ -78,7 +86,9 @@ describe('diffTeamNames', () => {
 
   it('reports an ESPN team with no open era at all (a revived id, before any season exists)', () => {
     const out = diffTeamNames([espn({ espnId: '4', name: 'Houston Comets', abbreviation: 'HOU' })], eras)
-    expect(out).toEqual([{ espnId: '4', espnName: 'Houston Comets', espnAbbreviation: 'HOU', eraName: null, eraAbbreviation: null }])
+    expect(out).toEqual([
+      { espnId: '4', espnName: 'Houston Comets', espnAbbreviation: 'HOU', eraName: null, eraAbbreviation: null },
+    ])
   })
 
   it('ignores open eras ESPN no longer lists (nothing to rename)', () => {

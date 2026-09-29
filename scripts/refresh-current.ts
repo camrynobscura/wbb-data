@@ -70,8 +70,7 @@ async function main(): Promise<void> {
     let ids = [...appearances.keys()]
     if (limitArg) ids = ids.slice(0, limitArg)
     console.log(
-      `discovered ${ids.length} current players; refreshing ${currentYear} rows ` +
-        `(concurrency ${CONCURRENCY})...`,
+      `discovered ${ids.length} current players; refreshing ${currentYear} rows ` + `(concurrency ${CONCURRENCY})...`,
     )
 
     await mapWithConcurrency(ids, CONCURRENCY, async (id) => {
@@ -163,14 +162,7 @@ async function main(): Promise<void> {
       console.error(`notification step failed (non-fatal): ${String(notifyErr)}`)
     }
 
-    await finishScrapeRun(
-      pool,
-      runId,
-      'success',
-      done,
-      failed ? `${failed} players failed` : undefined,
-      lastGameDate,
-    )
+    await finishScrapeRun(pool, runId, 'success', done, failed ? `${failed} players failed` : undefined, lastGameDate)
     console.log(`✅ refresh complete: ${done} players, ${skipped} skipped (no stats), ${failed} failed`)
   } catch (err) {
     await finishScrapeRun(pool, runId, 'error', done, String(err))

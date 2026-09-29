@@ -140,10 +140,7 @@ export interface ComputeLeagueOptions {
 }
 
 /** Recompute per-season league averages into league_seasons. Does not close the pool. */
-export async function computeLeague(
-  pool: Pool,
-  { year }: ComputeLeagueOptions = {},
-): Promise<number> {
+export async function computeLeague(pool: Pool, { year }: ComputeLeagueOptions = {}): Promise<number> {
   // Which regular-season years to (re)compute? Scoped to `year` when given.
   const yearsRes = await pool.query<{ season_year: number }>(
     `SELECT DISTINCT season_year FROM player_seasons
@@ -168,11 +165,6 @@ export async function computeLeague(
     if (n) slates[y] = n
   }
 
-  const result = await pool.query(SQL, [
-    JSON.stringify(slates),
-    QUALIFYING_GAMES,
-    FULL_SCHEDULE_GAMES,
-    year ?? null,
-  ])
+  const result = await pool.query(SQL, [JSON.stringify(slates), QUALIFYING_GAMES, FULL_SCHEDULE_GAMES, year ?? null])
   return result.rowCount ?? 0
 }

@@ -9,12 +9,7 @@
  */
 
 import { discoverPlayerIds } from '../src/espn/client'
-import {
-  currentSeason,
-  FIRST_WNBA_SEASON,
-  ROSTER_WINDOW_YEARS,
-  windowStart,
-} from '../src/seasons'
+import { currentSeason, FIRST_WNBA_SEASON, ROSTER_WINDOW_YEARS, windowStart } from '../src/seasons'
 
 async function main(): Promise<void> {
   const all = process.argv.includes('--all')

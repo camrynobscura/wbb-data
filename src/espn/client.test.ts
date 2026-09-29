@@ -3,7 +3,11 @@ import { fetchTeamGames } from './client'
 
 /** A core team-statistics response carrying only gamesPlayed, shaped like ESPN's. */
 const teamStats = (gamesPlayed: number) =>
-  new Response(JSON.stringify({ splits: { categories: [{ name: 'general', stats: [{ name: 'gamesPlayed', value: gamesPlayed }] }] } }))
+  new Response(
+    JSON.stringify({
+      splits: { categories: [{ name: 'general', stats: [{ name: 'gamesPlayed', value: gamesPlayed }] }] },
+    }),
+  )
 
 describe('fetchTeamGames', () => {
   afterEach(() => vi.unstubAllGlobals())
@@ -23,7 +27,10 @@ describe('fetchTeamGames', () => {
   })
 
   it('null when ESPN has no statistics for the team that year (the caller falls back to the season total)', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => new Response('not found', { status: 404 })))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('not found', { status: 404 })),
+    )
     expect(await fetchTeamGames('4', 2008)).toBeNull()
   })
 })

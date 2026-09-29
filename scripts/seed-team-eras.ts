@@ -55,9 +55,7 @@ async function main(): Promise<void> {
   const teams = (await pool.query('SELECT id, espn_id FROM teams ORDER BY id')).rows
 
   // The league's latest season on record. A franchise without data in it is defunct.
-  const latest = Number(
-    (await pool.query('SELECT MAX(season_year) AS y FROM player_seasons')).rows[0].y,
-  )
+  const latest = Number((await pool.query('SELECT MAX(season_year) AS y FROM player_seasons')).rows[0].y)
 
   for (const team of teams) {
     // Every year this franchise appears (canonical seasons + trade stints).
@@ -120,9 +118,7 @@ async function main(): Promise<void> {
     }
     console.log(
       `team ${team.espn_id}: ` +
-        eras
-          .map((e) => `${e.name} (${e.abbreviation}) [${e.start_year}-${e.end_year ?? 'now'}]`)
-          .join(', '),
+        eras.map((e) => `${e.name} (${e.abbreviation}) [${e.start_year}-${e.end_year ?? 'now'}]`).join(', '),
     )
   }
 

@@ -17,13 +17,8 @@ export async function upsertTeam(pool: Pool, espnTeamId: string): Promise<string
  * non-WNBA team (ESPN sometimes lists a departed player's NATIONAL team) finds
  * nothing here and the player's current_team_id is left null — no junk row created.
  */
-export async function getTeamIdByEspn(
-  pool: Pool,
-  espnTeamId: string,
-): Promise<string | null> {
-  const res = await pool.query(`SELECT id FROM teams WHERE espn_id = $1`, [
-    espnTeamId,
-  ])
+export async function getTeamIdByEspn(pool: Pool, espnTeamId: string): Promise<string | null> {
+  const res = await pool.query(`SELECT id FROM teams WHERE espn_id = $1`, [espnTeamId])
   return res.rows.length ? (res.rows[0] as { id: string }).id : null
 }
 

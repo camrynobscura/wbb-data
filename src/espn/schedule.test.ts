@@ -6,8 +6,7 @@ const game = (name: string, completed: boolean, type = 2): ScheduleEvent => ({
   seasonType: { type },
   competitions: [{ status: { type: { name, completed } } }],
 })
-const games = (n: number, name: string, completed: boolean) =>
-  Array.from({ length: n }, () => game(name, completed))
+const games = (n: number, name: string, completed: boolean) => Array.from({ length: n }, () => game(name, completed))
 
 describe('countPlayedGames', () => {
   it('the in-progress season counts only games completed so far', () => {
@@ -62,7 +61,12 @@ describe('countPlayedGames', () => {
     const vs = (date: string, a: string, b: string): ScheduleEvent => ({
       date,
       seasonType: { type: 2 },
-      competitions: [{ status: { type: { name: 'STATUS_FINAL', completed: true } }, competitors: [{ team: { id: a } }, { team: { id: b } }] }],
+      competitions: [
+        {
+          status: { type: { name: 'STATUS_FINAL', completed: true } },
+          competitors: [{ team: { id: a } }, { team: { id: b } }],
+        },
+      ],
     })
     const events = [
       vs('2011-06-04T23:00Z', '5', '19'),
@@ -112,7 +116,10 @@ describe('lastCompletedGameDate', () => {
   it("ignores the Commissioner's Cup final — its stats aren't in anyone's season (2026: June 30)", () => {
     const events = [
       at('2026-06-29T23:00Z', 'STATUS_FINAL', true),
-      { ...at('2026-06-30T23:30Z', 'STATUS_FINAL', true), competitions: [{ status: { type: { name: 'STATUS_FINAL', completed: true } }, type: { abbreviation: 'CC' } }] },
+      {
+        ...at('2026-06-30T23:30Z', 'STATUS_FINAL', true),
+        competitions: [{ status: { type: { name: 'STATUS_FINAL', completed: true } }, type: { abbreviation: 'CC' } }],
+      },
     ]
     expect(lastCompletedGameDate(events)).toBe('2026-06-29')
   })
