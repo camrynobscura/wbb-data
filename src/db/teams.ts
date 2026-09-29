@@ -39,9 +39,9 @@ export interface SeasonTeam {
 /**
  * Every team with a regular-season row in a season (or in every season when `year` is omitted):
  * the season's team, plus each stint's team for traded players (stints hang off the season row —
- * they carry no year themselves). Carries BOTH ids because mixing them up is a real bug: until
- * 2026-09-26 the nightly's "Stats through" step sent teams.id to ESPN's schedule endpoint, which
- * reached only 7 of the 15 2026 teams (our 17 is the Mystics, ESPN's 17 the Aces).
+ * they carry no year themselves). Carries both ids because mixing them up is a real bug: sending
+ * teams.id to ESPN's schedule endpoint once reached only 7 of the 15 2026 teams (our 17 is the Mystics,
+ * ESPN's 17 the Aces).
  */
 export async function seasonTeams(pool: Pool, year?: number): Promise<SeasonTeam[]> {
   const { rows } = await pool.query<{ team_id: string; espn_id: string; season_year: number }>(

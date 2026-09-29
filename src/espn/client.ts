@@ -22,7 +22,6 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
  * network / an unparseable body) with a growing backoff. Any other 4xx is a real answer,
  * not something to retry — and with `notFoundIsNull` a 404 comes back as null: ESPN saying
  * "nothing here" (a 2000s reserve with no career stats page), which is data, not an error.
- * (Before 2026-09-23 a 4xx fell into the retry loop: three identical 404s per player.)
  */
 async function request<T>(url: string, notFoundIsNull: boolean): Promise<T | null> {
   const maxAttempts = 3
@@ -104,7 +103,7 @@ export async function discoverAppearances(fromYear: number, toYear: number): Pro
   return appearances
 }
 
-/** D1 · the rolling-window universe: everyone in the last ROSTER_WINDOW_YEARS seasons. */
+/** The rolling window: everyone in the last ROSTER_WINDOW_YEARS seasons. */
 export const discoverCurrentAppearances = (currentYear: number): Promise<Appearances> =>
   discoverAppearances(windowStart(currentYear), currentYear)
 
@@ -300,8 +299,8 @@ export interface CurrentTeam {
 
 /**
  * The league's current teams — id, display name, abbreviation — from ESPN's teams list (one
- * request, ~15 rows). The nightly compares these against the OPEN team_eras rows to notice a
- * rename or relocation the day ESPN makes it (2026-09-25): ESPN keeps the franchise id across a
+ * request, ~15 rows). The daily refresh compares these against the open team_eras rows to notice a
+ * rename or relocation the day ESPN makes it: ESPN keeps the franchise id across a
  * move (San Antonio Stars → Las Vegas Aces stayed 17), so the only visible change is the name,
  * and nothing else in the pipeline reads it. Null when the request fails — the caller treats
  * that as "couldn't check", never as "no teams".

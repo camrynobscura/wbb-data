@@ -2,7 +2,7 @@
  * The full scrape: discover the player universe (Pass A), then ingest each
  * player (Pass B) with bounded concurrency and a scrape_runs audit row.
  *
- * The rolling window (D1):      npx tsx scripts/scrape.ts
+ * The rolling window:           npx tsx scripts/scrape.ts
  * The whole league, 1997→:      npx tsx scripts/scrape.ts --all
  * Retry the ids in a file:      npx tsx scripts/scrape.ts --ids data/scrape-failed-42.txt
  * Only the first N (testing):   npx tsx scripts/scrape.ts 5        (combines with --all)
@@ -111,7 +111,7 @@ async function main(): Promise<void> {
         const seasons = [...fromStats, ...recovered]
         if (seasons.length === 0) {
           // No stats rows at all — ESPN has no career page for her, or only averages with
-          // no totals. Nothing the app could show, so she isn't stored (D6: played = a row
+          // no totals. Nothing the app could show, so she isn't stored (played = a row
           // exists). Reported, not counted as a failure.
           noSeasons.push(id)
         } else {

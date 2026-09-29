@@ -1,8 +1,8 @@
 /**
  * Seed team_eras with era-accurate names. For each franchise, fetch ESPN's name for every
  * year it appears in our data, then collapse consecutive same-name years into eras (Detroit
- * Shock 1998–2009 → Tulsa Shock 2010–2015 → Dallas Wings 2016–, one franchise id). Rules,
- * learned from the full-history data (2026-09-23):
+ * Shock 1998–2009 → Tulsa Shock 2010–2015 → Dallas Wings 2016–, one franchise id). Rules, learned from
+ * the full-history data:
  *   - an era's abbreviation is its LATEST year's — today's code is what the frontend keys
  *     team tints on (the Sparks are "LA" now; ESPN's 1997 record says "LOS");
  *   - a gap in the team's seasons starts a new era even under the same name — ESPN reuses

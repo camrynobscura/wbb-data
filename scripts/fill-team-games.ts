@@ -1,6 +1,6 @@
 /**
  * Fill team_season_games (migration 008): each team's regular-season game count per season. The
- * logic lives in src/db/teamGames.ts (shared with the nightly). A finished season comes from ESPN
+ * logic lives in src/db/teamGames.ts (shared with the daily refresh). A finished season comes from ESPN
  * team statistics (+ the hand-checked corrections; the season total where ESPN has none); the
  * season in progress from each team's schedule.
  *

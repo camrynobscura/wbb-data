@@ -1,7 +1,4 @@
-/**
- * Pure parsing helpers for ESPN's career-stats shape. No network, no database —
- * just data-in / data-out, so every function here is easy to unit-test.
- */
+/** Parsing helpers for ESPN's responses: no network and no database, so every function is unit-tested. */
 
 /**
  * ESPN packs "makes" and "attempts" into one hyphenated string, e.g. "85-246"
@@ -21,9 +18,8 @@ export function splitMakeAttempt(raw: string): {
 }
 
 /**
- * ESPN aligns a category's `stats[]` values positionally to its `names[]` keys.
- * Zip them into a name→value lookup so we can read stats BY NAME instead of by
- * fragile array index (robust if ESPN ever reorders its columns).
+ * ESPN aligns a category's `stats[]` values positionally to its `names[]` keys. Zipped into a name → value
+ * lookup, stats are read by name rather than by index, which survives ESPN reordering its columns.
  */
 export function zipStats(
   names: string[],
@@ -106,7 +102,7 @@ export function parseTotalsBox(names: string[], stats: string[]): BoxScore {
   }
 }
 
-/** The 6 miscellaneous per-season counts we keep (maps to the new columns). */
+/** The 6 miscellaneous per-season counts we keep (player_seasons columns). */
 export interface MiscStats {
   doubleDoubles: number
   tripleDoubles: number
@@ -213,16 +209,13 @@ export function missingAppearances(
 
 // ─── Bio (core athlete endpoint) ─────────────────────────────────────────────
 
-/**
- * Player bio (maps to the players table). `draft_*` aren't on ESPN's athlete
- * endpoints, so they stay null for v1 (backfilled later from the draft endpoint).
- */
+/** Player bio (the players table). The draft fields come inline for 2018+ draftees; older players' are null. */
 export interface PlayerBio {
   espnId: string
   name: string
   position: string | null
   jersey: number | null
-  /** ESPN's own flag — false for a retired player. Gates current-team resolution: a retired
+  /** ESPN's flag: false for retired and waived players. Gates current-team resolution: a retired
       bio's team ref is unreliable (it can name a franchise she never played for). */
   active: boolean
   currentTeamEspnId: string | null // ESPN team id from the bio's team ref (current/last team)
@@ -267,14 +260,14 @@ function parsePosition(position: EspnAthlete['position']): string | null {
 export function parseBio(athlete: EspnAthlete): PlayerBio {
   return {
     espnId: athlete.id,
-    // Some older names arrive with doubled spaces ("Deanna  Nolan") — collapse them, or the
-    // name is ugly and its URL slug becomes "deanna--nolan".
+    // Some older names arrive with doubled spaces ("Deanna  Nolan"); collapsed, or the URL slug
+    // becomes "deanna--nolan".
     name: athlete.displayName.replace(/\s+/g, ' ').trim(),
     position: parsePosition(athlete.position),
     // ESPN gives jersey as a string ("22"); empty/absent → null. "00" collapses to 0.
     jersey: athlete.jersey ? Number(athlete.jersey) : null,
-    // Every bio seen carries the flag (true for current players, false for retired ones); if it
-    // were ever absent, assume active so the current team still resolves as it always has.
+    // Every bio seen carries the flag; if it were ever absent, assume active so the current team still
+    // resolves.
     active: athlete.active ?? true,
     // team is a $ref URL that embeds the id: ".../teams/9?..." → "9" (null if absent).
     currentTeamEspnId: athlete.team?.$ref?.match(/\/teams\/(\d+)/)?.[1] ?? null,
@@ -452,10 +445,9 @@ function sumFields<T extends object>(first: T, rest: T[]): T {
 }
 
 /**
- * Apply the D2 trade rule: group rows by year, and for each year pick the
- * canonical season. If a no-teamId TOTAL row exists (a traded year), it's
- * canonical and the per-team rows become stints; otherwise the single team row
- * is canonical with no stints.
+ * The trade rule: group rows by year, and pick each year's canonical season. If a TOTAL row (no teamId)
+ * exists, it's a traded year: the TOTAL is canonical and the per-team rows become stints. Otherwise the
+ * single team row is canonical, with no stints.
  */
 export function groupSeasons(
   rows: RawSeasonRow[],

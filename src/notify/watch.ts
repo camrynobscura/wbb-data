@@ -1,11 +1,9 @@
 import type { Pool } from 'pg'
 
 /**
- * The featured players the frontend hard-codes on its landing page, by ESPN id.
- * MIRROR of wnba-arc/src/data/featured.ts — keep the two id lists in sync (ids are
- * permanent, so this rarely changes). We store only ids: the refresh compares each
- * player's identity in the DB from one run to the next, so it needs no baked
- * name/team values here (that's the "change-at-scrape" detection — see DECISIONS).
+ * The featured players the frontend hard-codes on its landing page, by ESPN id: a copy of
+ * wnba-arc/src/data/featured.ts, kept in sync by hand (the ids are permanent, so it rarely changes). Only
+ * ids: the refresh compares each player's identity in the database from one run to the next.
  */
 export const FEATURED_ESPN_IDS: string[] = [
   '3149391', // A'ja Wilson
@@ -101,15 +99,14 @@ export function diffIdentities(
  * new WNBA franchise once it starts playing (no era at all), or a revived id playing a season past
  * its last era (Portland's 132052 in 2026 without a 2026 era).
  *
- * NOT "no current era" (an era with end_year IS NULL), which this checked until 2026-09-24: that
- * was only right while every team in the database was a current one. The full-history ingest
- * added the retired franchises — Comets, Sting, Rockers, Sol, Miracle, Starzz, Monarchs — whose
- * eras all end, and they tripped the check every night although each was fully named.
+ * Not "no current era" (an era with end_year IS NULL): the retired franchises (Comets, Sting, Rockers,
+ * Sol, Miracle, Starzz, Monarchs) have eras that all end, and would trip that check every night although
+ * each is fully named.
  *
  * The game-data requirement is deliberate: ESPN bios sometimes point an international player's
  * "current team" at her NATIONAL team (Brazil, Nigeria), which upsertTeam then creates as a bare
  * teams row. Those have no season data, seed-team-eras can never name them, so flagging them
- * would be a nightly false alarm. Returns the ESPN ids to name.
+ * would be a daily false alarm. Returns the ESPN ids to name.
  */
 export async function findUnnamedTeams(pool: Pool): Promise<string[]> {
   const { rows } = await pool.query(
@@ -165,19 +162,19 @@ export interface TeamRename {
 }
 
 /**
- * Compare ESPN's current teams to our open eras (pure; the nightly feeds it fetchCurrentTeams +
- * loadOpenEras). Why this exists (2026-09-25): findUnnamedTeams can't see a relocation. ESPN keeps
+ * Compare ESPN's current teams to our open eras (pure; the daily refresh feeds it fetchCurrentTeams and
+ * loadOpenEras). Why: findUnnamedTeams can't see a relocation. ESPN keeps
  * the franchise id across a move (Stars → Aces stayed 17), our open era has no end year, so it
  * covers every future season — a renamed team 18 would be filed under "Connecticut Sun" forever
  * and no alert would fire. Here a name or abbreviation that differs from the open era is the
- * signal; acting on it stays manual (close the era, open the new one — ROADMAP). An ESPN team
+ * signal; acting on it stays manual (close the era, open the new one). An ESPN team
  * with no open era at all is reported too (eraName null): a revived franchise the day ESPN lists
  * it, before any player season exists to trip the other check. Teams that ESPN no longer lists
  * (folded franchises with closed eras) are not reported — nothing to rename.
  *
  * NAME only, not abbreviation: ESPN's own endpoints disagree on abbreviations (the teams list says
- * PHX, the per-season team endpoint our eras were seeded from says PHO — a dry run on 2026-09-25
- * flagged Phoenix on that alone), and a relocation always changes the display name. The
+ * PHX, the per-season team endpoint our eras were seeded from says PHO, and a dry run flagged Phoenix on
+ * that alone), and a relocation always changes the display name. The
  * abbreviations ride along in the result for the person reading the alert.
  */
 export function diffTeamNames(

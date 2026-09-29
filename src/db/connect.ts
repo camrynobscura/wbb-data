@@ -10,8 +10,8 @@ import { parse } from 'pg-connection-string'
  * Configuration; the same root the live session pooler presented on 2026-09-28; it expires
  * 2031-04-26), which isn't among the public roots Node trusts — so `ssl: true` alone fails with
  * "self-signed certificate in certificate chain". Handing pg that root as `ca` checks the chain,
- * and pg passes the host as `servername`, so Node checks the hostname too. Before this, pg sent the
- * password and every query unencrypted: it only encrypts when told to (security review S1).
+ * and pg passes the host as `servername`, so Node checks the hostname too. Without it, pg would send the
+ * password and every query unencrypted: it only encrypts when told to.
  *
  * A Supabase connection string may not carry its own SSL settings (`sslmode`, `ssl`,
  * `sslrootcert`, …): pg lets the string's settings REPLACE the `ssl` given here

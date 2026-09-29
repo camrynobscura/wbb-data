@@ -23,9 +23,9 @@ const pool = new Pool({
   connectionTimeoutMillis: 10_000,
   statement_timeout: 10_000, // Postgres cancels any query running longer than 10s
 })
-// pg-pool re-emits an IDLE client's socket error on the pool, and an 'error' event with no
-// listener throws — which took the whole process down on 2026-09-21 (`read ETIMEDOUT` on an idle
-// Supabase connection after ~35 min up). The pool drops the dead client on its own; log and go on.
+// pg-pool re-emits an idle client's socket error on the pool, and an 'error' event with no listener
+// throws, which took the whole process down (`read ETIMEDOUT` on an idle Supabase connection after ~35
+// minutes up). The pool drops the dead client on its own; log and go on.
 pool.on('error', (err) => {
   console.error('[pg pool] idle client error (client discarded):', err.message)
 })
@@ -67,8 +67,8 @@ app.get('/', (req, res) => {
 })
 
 app.get('/players', async (req, res) => {
-  // ?scope=current (default: the rolling window the app has always shown) | all (every player on
-  // record, retired included). Anything else is the client's mistake, not a silent default.
+  // ?scope=current (the default: the rolling window) | all (every player on record, retired included).
+  // Anything else is the client's mistake, not a silent default.
   const scope = req.query.scope ?? 'current'
   if (scope !== 'current' && scope !== 'all') {
     res.status(400).json({ error: "scope must be 'current' or 'all'" })

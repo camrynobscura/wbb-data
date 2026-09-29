@@ -1,13 +1,8 @@
 /**
- * Shared SQL fragment for the deviation-bar percentile ladders (migration 004), used by both
- * computeLeague and computePositions so league and position rows are built identically.
- *
- * The ladder is DECILES — 11 values at the 0,10,…,100th percentiles of a per-game stat across
- * that season's qualified players. The frontend (wnba-arc deviation.ts) assumes exactly this
- * spacing when it interpolates a player's value back into a percentile, so this spacing is a
- * cross-repo contract: change it here → change it there. Deciles (not a denser ladder) keep
- * the /league and /positions payloads small while still placing near-max values correctly
- * (a star's value sits between the 90th-percentile and the max, and interpolates fine).
+ * Shared SQL for the decile ladders (migration 004), used by computeLeague and computePositions so league
+ * and position rows are built the same way: 11 values at the 0th, 10th, …, 100th percentiles of a per-game
+ * stat across that season's qualified players. Served in /league and /positions; the current frontend
+ * doesn't read them.
  */
 
 // Decile fractions for percentile_cont's multi-percentile (array) form.

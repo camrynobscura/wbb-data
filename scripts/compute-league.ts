@@ -1,7 +1,7 @@
 /**
  * Compute per-season league averages (regular season) into league_seasons. The
  * real logic lives in src/db/computeLeague.ts (shared with the scheduled refresh);
- * see there for the decisions (D3) baked into the SQL.
+ * see there for the rules baked into the SQL.
  *
  * Run all years:      npx tsx scripts/compute-league.ts
  * Run one year only:  npx tsx scripts/compute-league.ts 2026

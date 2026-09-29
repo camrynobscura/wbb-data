@@ -7,7 +7,7 @@ import type { SeasonTeam } from './teams'
 // the Y in its players' "of Y games" and the slate their games bars scale by. Read through the
 // player_season_team_games view by computeLeague, computePositions, the API's rank query and
 // GET /players/:id. Two ways in, one per kind of season (measured on all 380 team-seasons,
-// 2026-09-26 — DATA-NOTES "A finished season's games come from team statistics"):
+// 2026-09-26):
 
 type Source = 'team_stats' | 'correction' | 'season_total' | 'schedule'
 
@@ -60,14 +60,14 @@ export async function fillFinishedTeamGames(pool: Pool, teams: SeasonTeam[]): Pr
 
 export interface CurrentRefresh {
   written: number
-  /** ESPN ids whose schedule couldn't be fetched — their rows keep the last night's count. */
+  /** ESPN ids whose schedule couldn't be fetched: their rows keep the last run's count. */
   failed: string[]
   /** "Stats through …": the latest played regular-season game across every team's schedule. */
   lastGameDate: string | null
 }
 
 /**
- * The season IN PROGRESS, nightly: each team's schedule — the games it has played so far
+ * The season in progress, in the daily refresh: each team's schedule, the games it has played so far
  * (countPlayedGames: completed, not the Cup final, not a forfeit, a duplicate once). The same
  * download gives "Stats through" (lastCompletedGameDate, max over teams — one team's schedule has
  * its off days). A failed schedule keeps the team's previous row (a day stale at worst) rather than

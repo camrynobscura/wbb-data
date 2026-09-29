@@ -7,7 +7,7 @@
  * and position averages.
  *
  * Everything keys off new Date().getFullYear() and a rolling discovery window, so
- * it rolls into the next season on its own with no code change (see DECISIONS).
+ * it rolls into the next season on its own with no code change.
  *
  * Run:              npx tsx scripts/refresh-current.ts
  * Run first N only:  npx tsx scripts/refresh-current.ts 5     (handy for testing)

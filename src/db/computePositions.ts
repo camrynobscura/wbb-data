@@ -12,9 +12,8 @@ import { pctlLadder } from './spread'
 export const MIN_QUALIFIED = 8
 
 // The "played enough to count" bar that picks which player-seasons feed the averages is
-// computeLeague.ts's QUALIFYING_GAMES / FULL_SCHEDULE_GAMES, imported — one concept, one
-// definition: it decides the greyed-out seasons in the UI AND who qualifies for the league
-// averages, the position averages, and the ranks.
+// computeLeague.ts's QUALIFYING_GAMES / FULL_SCHEDULE_GAMES, imported: one definition decides who
+// qualifies for the league averages, the position averages and the ranks.
 
 // $1 = optional single season year to (re)compute; NULL does every year.
 const DELETE_SQL = `DELETE FROM position_seasons WHERE ($1::int IS NULL OR season_year = $1::int)`

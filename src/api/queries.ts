@@ -1,7 +1,6 @@
 /**
- * Shaping layer (Phase 3, step 3b). Framework-agnostic: each function takes a pg
- * Pool and returns the API contract types. Express routes are thin wrappers over
- * these — no SQL or shaping logic lives in the HTTP layer.
+ * The query layer: each function takes a pg Pool and returns the API contract types. The Express routes
+ * are thin wrappers over these; no SQL or shaping lives in the HTTP layer.
  *
  * Two pg gotchas handled here:
  *  - bigint columns (ids) come back as strings — already what the contract wants.
@@ -81,10 +80,9 @@ function toSummary(r: SummaryRow): PlayerSummary {
 export type PlayerScope = 'current' | 'all'
 
 /**
- * GET /players — alphabetical. `current` (the default) is the rolling window (D1): anyone with a
- * season, regular or playoff, in the last ROSTER_WINDOW_YEARS years — the universe the app has
- * always shown, now derived from the data rather than from what was ingested. `all` is every
- * player in the database, retired included, for a client that shows league history.
+ * GET /players, alphabetical. `current` (the default) is the rolling window: anyone with a season, regular
+ * or playoff, in the last ROSTER_WINDOW_YEARS years. `all` is every player in the database, retired
+ * included.
  */
 export async function getPlayers(pool: Pool, scope: PlayerScope = 'current'): Promise<PlayerSummary[]> {
   const inWindow = `WHERE EXISTS (
@@ -163,8 +161,8 @@ interface RankRow {
 
 /**
  * Rank floors for a shooting percentage, per FULL_SCHEDULE_GAMES-game season and scaled to the
- * player's team's games in the SQL (count × 44 >= floor × team games). A season clears it with ENOUGH ATTEMPTS
- * OR ENOUGH MAKES (user, 2026-09-25): 3P% 60 attempts or 20 made; FG% 200 attempts or 85 made;
+ * player's team's games in the SQL (count × 44 >= floor × team games). A season clears it with enough attempts
+ * or enough makes: 3P% 60 attempts or 20 made; FG% 200 attempts or 85 made;
  * TS% 125 "shooting possessions" (FGA + 0.44 × FTA, the TS% denominator — already attempts).
  * The made counts are Basketball-Reference's WNBA rate-stat requirements; the attempt counts are
  * the same bar at the league's all-time average (33.9% from three → 20 made ≈ 59 attempts; 43.1%
@@ -178,18 +176,19 @@ interface RankRow {
 export const RATE_RANK_FLOOR = { fgAtt: 200, fgMade: 85, fg3Att: 60, fg3Made: 20, tsPossessions: 125 } as const
 
 /**
- * The frontend's COLOR floors (deviation.ts TINT_FLOOR — keep paired), fixed counts, not scaled:
- * a season under one shows that cell hollow. The rank pool requires them too, so a ranked season
- * is always a colored one (2026-09-25): the scaled rank floors dip below these in short seasons —
- * in the 22-game 2020 bubble 25 3P% seasons (Dearica Hamby 18-of-38) and 3 FG% seasons were being
- * ranked, and counted in everyone's "of N", while their cells were hollow and showed no rank.
+ * The frontend's color floors (deviation.ts TINT_FLOOR; keep them paired), fixed counts, not scaled: a
+ * season under one shows that cell hollow. The rank pool requires them too, so a ranked season is always
+ * a colored one. The scaled rank floors dip below these in short seasons: in the 22-game 2020 bubble,
+ * 25 3P% seasons (Dearica Hamby 18-of-38) and 3 FG% seasons would otherwise be ranked and counted in
+ * everyone's "of N" while their cells were hollow.
  */
 export const RATE_TINT_FLOOR = { fgAtt: 100, fg3Att: 40, tsPossessions: 100 } as const
 
 // Where each of a player's seasons ranks among that year's QUALIFIED player-seasons — the same pool
 // computeLeague.ts averages over (QUALIFYING_GAMES of FULL_SCHEDULE_GAMES, scaled to the player's
-// team's games — player_season_team_games), so rank and percentile describe the same crowd. One window pass over the player's years only; the player's own rows are
-// then picked out. A season that doesn't qualify gets no row here → rank null, pool still known.
+// team's games, player_season_team_games), so the rank and the averages describe the same crowd. One window
+// pass over the player's years only; the player's own rows are then picked out. A season that doesn't
+// qualify gets no row here: rank null, pool still known.
 // A second set of windows partitions by position — the same crowd computePositions.ts averages
 // over, gated the same two ways so a position rank exists only where the position average does:
 // the bucket has >= $4 (MIN_QUALIFIED) players, AND the season is position-complete — every

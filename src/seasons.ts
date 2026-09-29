@@ -7,17 +7,17 @@
 export const FIRST_WNBA_SEASON = 1997
 
 /**
- * D1 · the rolling "current players" window: everyone who appeared in at least one game
+ * The rolling "current players" window: everyone who appeared in at least one game
  * (regular season or playoffs) in the last N seasons. Deliberately a window, not a live
  * roster: a player out injured or overseas stays current, and her absent year renders as a
- * gap. The nightly refresh discovers this set, and it is the API's default /players scope.
+ * gap. The daily refresh discovers this set, and it's the API's default /players scope.
  */
 export const ROSTER_WINDOW_YEARS = 3
 
 /**
  * The season in progress (or the one just finished). The WNBA plays one season per calendar
- * year, so the year is a fine proxy — it's what lets everything roll into the next season
- * with no code change (DECISIONS, "Auto-rolls into the next season").
+ * year, so the year is a fine proxy: it's what lets everything roll into the next season with no code
+ * change.
  */
 export const currentSeason = (): number => new Date().getFullYear()
 

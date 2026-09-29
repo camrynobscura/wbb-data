@@ -6,12 +6,10 @@ import { pctlLadder } from './spread'
 // The "played enough to count" bar. A season qualifies at QUALIFYING_GAMES of a
 // FULL_SCHEDULE_GAMES-game schedule, scaled to that year's real slate: 20 of 44 today, 13 of
 // 28 in 1997, 10 of the 2020 bubble's 22. That is Basketball-Reference's WNBA per-game
-// requirement (20 games) scaled so a short season isn't judged by a long season's bar — chosen
-// 2026-09-25 over the old 25% (11 of 44), which let a handful of games count as a year
-// (DECISIONS). One bar decides BOTH which player-seasons the app greys out AND which qualify
-// for these league averages, the position averages, and every rank — one crowd, so a rank, an
-// average, and a spread always describe the same players. The SQL compares in integers
-// (games_played × FULL >= QUALIFYING × the team's games), never a float fraction, so no season can land on
+// requirement (20 games) scaled so a short season isn't judged by a long season's bar. The one bar
+// decides who counts toward these league averages, the position averages and every rank, so a rank,
+// an average and a spread always describe the same players. The SQL compares in integers
+// (games_played × FULL >= QUALIFYING × the team's games), never a float fraction, so no season lands on
 // the wrong side of the line by rounding. Must stay equal to the frontend's pair
 // (wnba-arc/src/lib/deviation.ts QUALIFYING_GAMES / FULL_SCHEDULE_GAMES); computePositions.ts
 // and the API's RANK_SQL import these rather than keeping a copy.

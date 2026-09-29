@@ -8,7 +8,7 @@ export async function startScrapeRun(pool: Pool): Promise<string> {
   return (res.rows[0] as { id: string }).id
 }
 
-/** Close out a scrape_runs row with its final status, count, any error, and — from the nightly
+/** Close out a scrape_runs row with its final status, count, any error, and — from the daily
     refresh — the latest completed game date the schedules showed ("Stats through …", migration 007;
     null when unknown, and GET /meta then falls back to the last run that knew). */
 export async function finishScrapeRun(

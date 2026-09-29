@@ -76,8 +76,8 @@ export function lastCompletedGameDate(events: ScheduleEvent[]): string | null {
 /**
  * The regular-season games a team has played so far — for the IN-PROGRESS season, its
  * team_season_games row (and the Sparks' count is the league's season total). So the small-sample
- * gate scales with how much of the season has actually happened (D6.1: a regular isn't flagged
- * small-sample just because the season is young). Played = isPlayedGame; a game ESPN lists twice
+ * gate scales with how much of the season has actually happened (a regular isn't flagged a small
+ * sample just because the season is young). Played = isPlayedGame; a game ESPN lists twice
  * (2011: the June 4 Fever–Sky game under two event ids) counts once — the same date and the same
  * two teams is one game (the WNBA plays no same-day doubleheaders).
  *

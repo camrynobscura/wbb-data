@@ -1,7 +1,7 @@
 /**
  * Pass A — discovery, standalone: print the size of the player universe without
  * writing anything. The real logic lives in src/espn/client.ts (shared with scrape.ts
- * and the nightly refresh); this is its dry run. A player found in several (year, type)
+ * and the daily refresh); this is its dry run. A player found in several (year, type)
  * lists is counted once — the client dedupes with a Set.
  *
  * The rolling window (D1):  npx tsx scripts/discover-players.ts

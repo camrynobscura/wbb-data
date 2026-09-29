@@ -8,8 +8,8 @@
 --     season total (league_seasons.scheduled_games) — ESPN has no team statistics for the Comets
 --     2007–08 or the Monarchs 2007–09;
 --   * the season in progress: the team's schedule — completed games, not the Commissioner's Cup
---     final, not forfeits, a duplicate listing once (nightly).
--- Measured on all 380 team-seasons 1997–2026 on 2026-09-26 (wnba-data DATA-NOTES).
+--     final, not forfeits, a duplicate listing once (daily).
+-- Measured on all 380 team-seasons 1997–2026 on 2026-09-26.
 
 CREATE TABLE IF NOT EXISTS team_season_games (
     team_id bigint NOT NULL REFERENCES teams(id),
