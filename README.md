@@ -23,7 +23,7 @@ layout and how to run it.
 | `migrations/` | Plain SQL, applied in order by `npm run migrate` |
 | `certs/` | Supabase's root certificate, which the connection checks the database server against |
 | `.github/workflows/nightly-refresh.yml` | The daily refresh (GitHub Actions) |
-| `.github/workflows/ci.yml` | Type check, formatting and tests on every push |
+| `.github/workflows/ci.yml` | Lint, type check, formatting and tests on every push |
 
 ## Running locally
 
@@ -50,6 +50,7 @@ never change. Every write is an idempotent upsert, so any script can be rerun sa
 
 ```bash
 npm test              # unit tests (72)
+npm run lint          # oxlint
 npm run typecheck     # tsc --noEmit
 npm run format        # format with Prettier
 npm run format:check  # check formatting (CI runs this)

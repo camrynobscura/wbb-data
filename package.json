@@ -8,11 +8,12 @@
     "node": "26.x"
   },
   "scripts": {
+    "lint": "oxlint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "format": "prettier --write src scripts tsconfig.json .github",
-    "format:check": "prettier --check src scripts tsconfig.json .github",
+    "format": "prettier --write src scripts tsconfig.json .github .oxlintrc.json",
+    "format:check": "prettier --check src scripts tsconfig.json .github .oxlintrc.json",
     "serve": "tsx src/api/server.ts",
     "serve:watch": "tsx watch src/api/server.ts",
     "migrate": "tsx scripts/migrate.ts"
@@ -22,6 +23,7 @@
     "@types/express": "^5.0.6",
     "@types/node": "^26.2.0",
     "@types/pg": "^8.23.0",
+    "oxlint": "1.86.0",
     "prettier": "3.9.9",
     "typescript": "^7.0.2",
     "vitest": "^4.1.10"
