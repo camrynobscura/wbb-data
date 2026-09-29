@@ -17,13 +17,14 @@ layout and how to run it.
 | `src/espn/` | The ESPN client (retries with backoff, its own User-Agent) and the parsers, unit-tested |
 | `src/db/` | The database connection (encrypted and certificate-checked for Supabase), ingest and upserts, league and position averages, each team's games per season, the run audit |
 | `src/stats/` | Usage % and assist %, computed from team totals |
-| `src/api/` | The Express server and its SQL queries |
+| `src/api/` | The Express app (`app.ts`, started by `server.ts`) and its SQL queries |
 | `src/notify/` | Change alerts for the daily refresh (Telegram) |
+| `src/test/` | The database tests' helpers and their made-up league |
 | `scripts/` | Command-line entry points for everything below |
 | `migrations/` | Plain SQL, applied in order by `npm run migrate` |
 | `certs/` | Supabase's root certificate, which the connection checks the database server against |
 | `.github/workflows/nightly-refresh.yml` | The daily refresh (GitHub Actions) |
-| `.github/workflows/ci.yml` | Lint, type check, formatting and tests on every push |
+| `.github/workflows/ci.yml` | Lint, type check, formatting, unit tests and database tests on every push |
 
 ## Running locally
 
@@ -49,7 +50,8 @@ The daily job is `npx tsx scripts/refresh-current.ts`: the current season only, 
 never change. Every write is an idempotent upsert, so any script can be rerun safely.
 
 ```bash
-npm test              # unit tests (72)
+npm test              # unit tests (95), no database needed
+npm run test:db       # database tests (26) in a throwaway Postgres 17 (needs Docker running)
 npm run lint          # oxlint
 npm run typecheck     # tsc --noEmit
 npm run format        # format with Prettier
