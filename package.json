@@ -12,8 +12,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "format": "prettier --write src scripts tsconfig.json .github .oxlintrc.json",
-    "format:check": "prettier --check src scripts tsconfig.json .github .oxlintrc.json",
+    "test:db": "tsx scripts/test-db.ts",
+    "format": "prettier --write src scripts tsconfig.json vitest.config.ts vitest.db.config.ts .github .oxlintrc.json",
+    "format:check": "prettier --check src scripts tsconfig.json vitest.config.ts vitest.db.config.ts .github .oxlintrc.json",
     "serve": "tsx src/api/server.ts",
     "serve:watch": "tsx watch src/api/server.ts",
     "migrate": "tsx scripts/migrate.ts"
