@@ -1,5 +1,6 @@
 import type { Pool } from 'pg'
 import type { PlayerBio } from '../espn/parse'
+import { storedPosition } from './positionOverrides'
 import { upsertReturningId } from './upsert'
 
 /**
@@ -12,7 +13,7 @@ export async function upsertPlayer(pool: Pool, bio: PlayerBio, currentTeamId: st
   return upsertReturningId(pool, 'players', ['espn_id'], {
     espn_id: bio.espnId,
     name: bio.name,
-    position: bio.position,
+    position: storedPosition(bio),
     jersey: bio.jersey,
     active: bio.active,
     current_team_id: currentTeamId,
