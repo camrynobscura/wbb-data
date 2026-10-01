@@ -44,12 +44,13 @@ interface SummaryRow {
   team_abbr: string | null
   first_year: number | null
   last_year: number | null
+  former_names: string[]
 }
 
 // One SELECT for the list and the detail. first/last year come from the regular seasons on
 // record (a player with only playoff rows would read null for both).
 const SUMMARY_SELECT = `
-  SELECT p.id, p.espn_id, p.name, p.position, p.jersey, p.active, p.birth_date,
+  SELECT p.id, p.espn_id, p.name, p.position, p.jersey, p.active, p.birth_date, p.former_names,
          v.team_name, v.team_abbr, y.first_year, y.last_year
   FROM players p
   LEFT JOIN player_current_team v ON v.player_id = p.id
@@ -70,6 +71,7 @@ function toSummary(r: SummaryRow): PlayerSummary {
     active: r.active,
     firstYear: r.first_year,
     lastYear: r.last_year,
+    formerNames: r.former_names,
   }
 }
 

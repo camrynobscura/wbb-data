@@ -24,6 +24,7 @@ export interface PlayerSummary {
   active: boolean // ESPN's flag: false for retired and waived players alike, so not a retirement record
   firstYear: number | null // first and last regular season on record, the career span;
   lastYear: number | null //  null only for a player with no regular-season row
+  formerNames: string[] // names ESPN listed the player under before, oldest first; usually empty
 }
 
 /** `GET /players/:id`: one player with their full career. */

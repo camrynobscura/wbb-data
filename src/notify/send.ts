@@ -1,4 +1,4 @@
-import type { IdentityChange, TeamRename } from './watch'
+import type { IdentityChange, PlayerRename, TeamRename } from './watch'
 
 /**
  * Build the alert body from what the refresh found. Plain text (no markdown) — Telegram
@@ -9,8 +9,16 @@ export function formatAlert(
   changes: IdentityChange[],
   unnamedTeamEspnIds: string[],
   renamedTeams: TeamRename[] = [],
+  renamedPlayers: PlayerRename[] = [],
 ): string | null {
-  if (changes.length === 0 && unnamedTeamEspnIds.length === 0 && renamedTeams.length === 0) return null
+  if (
+    changes.length === 0 &&
+    unnamedTeamEspnIds.length === 0 &&
+    renamedTeams.length === 0 &&
+    renamedPlayers.length === 0
+  ) {
+    return null
+  }
 
   const lines: string[] = ['WNBA data refresh — attention needed']
 
@@ -36,6 +44,11 @@ export function formatAlert(
       const ours = r.eraName ? `${r.eraName} (${r.eraAbbreviation})` : 'no open era'
       lines.push(`• team ${r.espnId}: ${ours} → ${r.espnName} (${r.espnAbbreviation})`)
     }
+  }
+
+  if (renamedPlayers.length > 0) {
+    lines.push('', 'Player renamed on ESPN (old name kept; add it to KNOWN_FORMER_NAMES to survive a rebuild):')
+    for (const r of renamedPlayers) lines.push(`• ${r.from} → ${r.to} (${r.espnId})`)
   }
 
   return lines.join('\n')

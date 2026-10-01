@@ -36,6 +36,13 @@ export interface Identity {
   team: string | null
 }
 
+/** A player whose name ESPN changed, seen by ingest in this run (any player, not only the featured). */
+export interface PlayerRename {
+  espnId: string
+  from: string
+  to: string
+}
+
 /** A single field that moved between two runs, for the alert message. */
 export interface IdentityChange {
   espnId: string

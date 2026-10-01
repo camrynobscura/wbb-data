@@ -39,6 +39,23 @@ describe('ingestPlayer', () => {
     ])
   })
 
+  it('keeps the old name when ESPN changes it, and says so', async () => {
+    const formerNames = async () =>
+      (await pool.query<{ former_names: string[] }>(`SELECT former_names FROM players WHERE espn_id = '1'`)).rows[0]
+        ?.former_names
+    expect(
+      await ingestPlayer(pool, bio('1', 'Nia Coffey', 'F'), [season(2019, T1, { gp: 10, pts: 100 })], 2026),
+    ).toEqual({
+      renamedFrom: null,
+    })
+    expect(await formerNames()).toEqual([])
+    expect(await ingestPlayer(pool, bio('1', 'Nia Brodie', 'F'), [], 2026)).toEqual({ renamedFrom: 'Nia Coffey' })
+    expect(await formerNames()).toEqual(['Nia Coffey'])
+    expect(await ingestPlayer(pool, bio('1', 'Nia Brodie', 'F'), [], 2026)).toEqual({ renamedFrom: null })
+    expect(await formerNames()).toEqual(['Nia Coffey'])
+    expect(await count('players')).toBe(1)
+  })
+
   it('updates in place when the same player is ingested again', async () => {
     await ingestPlayer(pool, bio('1', 'Player', 'G'), [season(2019, T1, { gp: 10, pts: 100 })], 2026)
     await ingestPlayer(pool, bio('1', 'Player Renamed', 'F'), [season(2019, T1, { gp: 12, pts: 130 })], 2026)

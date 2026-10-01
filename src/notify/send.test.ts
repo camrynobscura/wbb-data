@@ -40,6 +40,12 @@ describe('formatAlert', () => {
     expect(msg).not.toContain('**') // plain text — Telegram shows it as-is
   })
 
+  it('lists a renamed player, and alone is enough to send', () => {
+    const alert = formatAlert([], [], [], [{ espnId: '3054590', from: 'Nia Coffey', to: 'Nia Brodie' }])
+    expect(alert).toContain('Player renamed on ESPN')
+    expect(alert).toContain('• Nia Coffey → Nia Brodie (3054590)')
+  })
+
   it('lists a renamed / relocated team as ours → ESPN, and alone is enough to send', () => {
     const msg = formatAlert(
       [],

@@ -7,14 +7,15 @@ import { upsertSeason, upsertStint } from './seasons'
 /**
  * Write one player end-to-end: the player row, then every season (and any trade
  * stints), resolving each ESPN teamId to our teams.id along the way. A per-player
- * cache means each distinct team is upserted only once.
+ * cache means each distinct team is upserted only once. Returns the name the player had before,
+ * when ESPN's differs from the stored one — the caller's cue to report a rename.
  */
 export async function ingestPlayer(
   pool: Pool,
   bio: PlayerBio,
   seasons: SeasonRecord[],
   currentSeasonYear: number,
-): Promise<void> {
+): Promise<{ renamedFrom: string | null }> {
   const teamCache = new Map<number, string>()
   // Create a team row ONLY from real game data — a season/stint team id is always a
   // real WNBA franchise the player actually played for.
@@ -28,7 +29,7 @@ export async function ingestPlayer(
 
   // Write the player first (the FK target for seasons). current_team_id is set
   // below by lookup, once real team rows exist — never created from the bio.
-  const playerId = await upsertPlayer(pool, bio, null)
+  const { id: playerId, renamedFrom } = await upsertPlayer(pool, bio, null)
 
   for (const season of seasons) {
     const teamId = season.teamId === null ? null : await resolveTeam(season.teamId)
@@ -59,4 +60,5 @@ export async function ingestPlayer(
       ])
     }
   }
+  return { renamedFrom }
 }

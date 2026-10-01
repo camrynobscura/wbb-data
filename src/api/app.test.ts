@@ -29,6 +29,7 @@ const wilson: PlayerDetail = {
   jersey: 22,
   active: true,
   firstYear: 2018,
+  formerNames: [],
   lastYear: 2026,
   seasons: [],
 }

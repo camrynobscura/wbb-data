@@ -41,6 +41,7 @@ import { mapWithConcurrency } from '../src/util/concurrency'
 import {
   FEATURED_ESPN_IDS,
   snapshotIdentities,
+  type PlayerRename,
   diffIdentities,
   diffTeamNames,
   findUnnamedTeams,
@@ -60,6 +61,7 @@ async function main(): Promise<void> {
   let done = 0
   let failed = 0
   let skipped = 0
+  const renamedPlayers: PlayerRename[] = []
 
   try {
     // Snapshot the featured players' identity BEFORE ingest overwrites it, so we
@@ -90,7 +92,8 @@ async function main(): Promise<void> {
           skipped++
         } else {
           const currentSeasons = seasons.filter((s) => s.year === currentYear)
-          await ingestPlayer(pool, bio, currentSeasons, currentYear)
+          const { renamedFrom } = await ingestPlayer(pool, bio, currentSeasons, currentYear)
+          if (renamedFrom) renamedPlayers.push({ espnId: id, from: renamedFrom, to: bio.name })
           done++
         }
       } catch (err) {
@@ -150,9 +153,9 @@ async function main(): Promise<void> {
       const espnTeams = await fetchCurrentTeams()
       if (espnTeams == null) console.error('team-name check skipped: ESPN teams list unavailable')
       const renamedTeams = espnTeams ? diffTeamNames(espnTeams, await loadOpenEras(pool)) : []
-      const alert = formatAlert(changes, unnamedTeams, renamedTeams)
+      const alert = formatAlert(changes, unnamedTeams, renamedTeams, renamedPlayers)
       if (!alert) {
-        console.log('no featured-player or team changes to report')
+        console.log('no player or team changes to report')
       } else {
         console.log(alert)
         const sent = await sendAlert(alert)
