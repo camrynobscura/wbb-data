@@ -50,7 +50,7 @@ The daily job is `npx tsx scripts/refresh-current.ts`: the current season only, 
 never change. Every write is an idempotent upsert, so any script can be rerun safely.
 
 ```bash
-npm test              # unit tests (134), no database needed
+npm test              # unit tests (101), no database needed
 npm run test:db       # database tests (27) in a throwaway Postgres 17 (needs Docker running)
 npm run lint          # oxlint
 npm run typecheck     # tsc --noEmit
