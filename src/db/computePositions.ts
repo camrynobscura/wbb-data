@@ -6,7 +6,7 @@ import { pctlLadder } from './spread'
 // row is omitted → the app shows "no same-position sample that season" instead of a noisy
 // two- or three-player mean. Measured against the real qualified-per-position histogram
 // (2026-08-24): everything from 2015 on clears 8, only thin pre-2015 buckets fall below.
-// Keep in sync with the frontend's missing-baseline copy (wnba-arc deviation.ts / captions).
+// Keep in sync with the frontend's missing-baseline copy (wbb-arc deviation.ts / captions).
 /** A (year, position) bucket needs this many qualified players to exist at all — shared with the
     per-position rank on /players/:id, so a rank never appears for a bucket the averages omit. */
 export const MIN_QUALIFIED = 8

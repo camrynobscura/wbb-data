@@ -1,9 +1,9 @@
 {
-  "name": "wnba-data",
+  "name": "wbb-data",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Private data layer for the wnba-arc visualizer — ESPN adapter + Postgres (Supabase) + derived stats.",
+  "description": "The data layer for Arc (wbb-arc): an ESPN adapter, Postgres (Supabase) and derived stats.",
   "engines": {
     "node": "26.x"
   },

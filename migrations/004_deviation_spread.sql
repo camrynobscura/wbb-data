@@ -22,7 +22,7 @@
 -- borrow the league spread (a player has no crowd of their own). Nullable: existing rows read
 -- NULL until the next computeLeague/computePositions run, and the frontend falls back to the
 -- old relative-% bar when the spread is absent (so a frontend-first deploy degrades, not
--- breaks). See src/db/computeLeague.ts, src/db/computePositions.ts, and wnba-arc deviation.ts.
+-- breaks). See src/db/computeLeague.ts, src/db/computePositions.ts, and wbb-arc deviation.ts.
 
 ALTER TABLE league_seasons
   ADD COLUMN IF NOT EXISTS stddev_points   numeric,

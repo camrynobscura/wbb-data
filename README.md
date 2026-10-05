@@ -1,11 +1,11 @@
-# wnba-data
+# wbb-data
 
-The data service behind **[WNBA Arc](https://github.com/camrynobscura/wnba-arc)**. It ingests every
+The data service behind **[Arc](https://github.com/camrynobscura/wbb-arc)**. It ingests every
 WNBA player's season history from ESPN, stores it in Postgres, computes league and position
 averages, spreads and ranks, and serves them through a small read-only Express API.
 
 **The architecture, schema, ranking rules and daily refresh are written up in the
-[WNBA Arc README](https://github.com/camrynobscura/wnba-arc#architecture).** This page covers the code
+[Arc README](https://github.com/camrynobscura/wbb-arc#architecture).** This page covers the code
 layout and how to run it.
 
 **Live API:** [`https://wnba-data-api.onrender.com`](https://wnba-data-api.onrender.com)

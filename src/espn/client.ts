@@ -13,7 +13,7 @@ import { countPlayedGames, type ScheduleEvent } from './schedule'
 import { FIRST_WNBA_SEASON, windowStart } from '../seasons'
 
 // Honest, non-browser User-Agent (no personal contact info sent to ESPN).
-const USER_AGENT = 'wnba-data/0.1 (personal research project)'
+const USER_AGENT = 'wbb-data/0.1 (personal research project)'
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 

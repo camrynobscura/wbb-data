@@ -17,7 +17,7 @@ vi.mock('./queries', () => ({
 }))
 
 const pool = {} as Pool // never touched: every query is stubbed
-const FRONTEND = 'https://wnba-arc.netlify.app'
+const FRONTEND = 'https://wbb-arc.netlify.app'
 
 const wilson: PlayerDetail = {
   id: '3',

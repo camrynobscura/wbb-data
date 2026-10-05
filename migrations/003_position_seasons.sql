@@ -6,7 +6,7 @@
 -- the app reads a missing row as "no same-position sample that season" rather than showing
 -- a misleading average built from two or three players. Threshold measured against the real
 -- qualified-per-position histogram on 2026-08-24 (everything from 2015 on clears 8).
--- See src/db/computePositions.ts and wnba-arc/src/lib/deviation.ts.
+-- See src/db/computePositions.ts and wbb-arc/src/lib/deviation.ts.
 
 CREATE TABLE IF NOT EXISTS position_seasons (
     season_year smallint NOT NULL,

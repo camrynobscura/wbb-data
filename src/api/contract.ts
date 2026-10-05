@@ -1,6 +1,6 @@
 /**
- * The API contract: the JSON the read API returns and the frontend reads. wnba-data is the source of
- * truth; wnba-arc keeps its own copy of these types (src/data/api.ts), so a change here means a change
+ * The API contract: the JSON the read API returns and the frontend reads. wbb-data is the source of
+ * truth; wbb-arc keeps its own copy of these types (src/data/api.ts), so a change here means a change
  * there.
  *
  *  - Counting stats (pts/reb/ast/stl/blk/min) are per game (totals ÷ gp); fgp/tpp are decimals

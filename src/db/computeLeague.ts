@@ -11,7 +11,7 @@ import { pctlLadder } from './spread'
 // an average and a spread always describe the same players. The SQL compares in integers
 // (games_played × FULL >= QUALIFYING × the team's games), never a float fraction, so no season lands on
 // the wrong side of the line by rounding. Must stay equal to the frontend's pair
-// (wnba-arc/src/lib/deviation.ts QUALIFYING_GAMES / FULL_SCHEDULE_GAMES); computePositions.ts
+// (wbb-arc/src/lib/deviation.ts QUALIFYING_GAMES / FULL_SCHEDULE_GAMES); computePositions.ts
 // and the API's RANK_SQL import these rather than keeping a copy.
 export const QUALIFYING_GAMES = 20
 export const FULL_SCHEDULE_GAMES = 44
@@ -156,7 +156,7 @@ export async function computeLeague(pool: Pool, { year }: ComputeLeagueOptions =
   // countPlayedGames in src/espn/schedule.ts). For the in-progress current season, the games
   // played so far, so the bars scale to how much of the season has actually happened (a regular
   // isn't flagged small-sample just because the season is young). Each player's own bar reads
-  // their team's count (team_season_games); this total is the fallback. See wnba-arc
+  // their team's count (team_season_games); this total is the fallback. See wbb-arc
   // deviation.ts (gamesTier) — the two share QUALIFYING_GAMES / FULL_SCHEDULE_GAMES.
   const current = currentSeason()
   const slates: Record<number, number> = {}

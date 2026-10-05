@@ -2,7 +2,7 @@ import type { Pool } from 'pg'
 
 /**
  * The featured players the frontend hard-codes on its landing page, by ESPN id: a copy of
- * wnba-arc/src/data/featured.ts, kept in sync by hand (the ids are permanent, so it rarely changes). Only
+ * wbb-arc/src/data/featured.ts, kept in sync by hand (the ids are permanent, so it rarely changes). Only
  * ids: the refresh compares each player's identity in the database from one run to the next.
  */
 export const FEATURED_ESPN_IDS: string[] = [
